@@ -31,7 +31,8 @@ class RealSrSettings {
   static const _keyMangaJaNaiGrayscaleThreshold =
       'realsr_mangajanai_grayscale_threshold';
   static const _keyMangaJaNaiPythonPath = 'realsr_mangajanai_python_path';
-  static const _keyMangaJaNaiBackendSrcDir = 'realsr_mangajanai_backend_src_dir';
+  static const _keyMangaJaNaiBackendSrcDir =
+      'realsr_mangajanai_backend_src_dir';
   static const _keyMangaJaNaiModelsDir = 'realsr_mangajanai_models_dir';
 
   /// 根据当前运行平台返回推荐的默认并发数。

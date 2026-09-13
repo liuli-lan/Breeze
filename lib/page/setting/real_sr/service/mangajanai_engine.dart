@@ -29,27 +29,24 @@ class MangaJaNaiEngine {
   /// GUI 默认安装位置下的关键路径（基于 %APPDATA% / %LOCALAPPDATA%）。
   ///
   /// 非 Windows 平台或环境变量缺失时返回 null（引擎仅在 Windows 可选）。
-  static String get defaultPythonPath => _appDataPath(const [
-    'python',
-    'python',
-    'python.exe',
-  ]);
+  static String? get defaultPythonPath =>
+      _appDataPath(const ['python', 'python', 'python.exe']);
 
-  static String get defaultBackendSrcDir =>
+  static String? get defaultBackendSrcDir =>
       _localAppDataPath(const ['current', 'backend', 'src']);
 
-  static String get defaultModelsDir => _appDataPath(const ['models']);
+  static String? get defaultModelsDir => _appDataPath(const ['models']);
 
   static String? _appDataPath(List<String> segments) {
     final base = Platform.environment['APPDATA'];
     if (base == null || base.isEmpty) return null;
-    return p.join(base, _appName, ...segments);
+    return p.joinAll([base, _appName, ...segments]);
   }
 
   static String? _localAppDataPath(List<String> segments) {
     final base = Platform.environment['LOCALAPPDATA'];
     if (base == null || base.isEmpty) return null;
-    return p.join(base, _appName, ...segments);
+    return p.joinAll([base, _appName, ...segments]);
   }
 
   /// 解析实际生效的路径（用户覆写优先，留空回退默认值）。
@@ -60,13 +57,14 @@ class MangaJaNaiEngine {
     final models = await RealSrSettings.loadMangaJaNaiModelsDir();
     return (
       pythonPath: python.isNotEmpty ? python : (defaultPythonPath ?? ''),
-      backendSrcDir: backend.isNotEmpty ? backend : (defaultBackendSrcDir ?? ''),
+      backendSrcDir: backend.isNotEmpty
+          ? backend
+          : (defaultBackendSrcDir ?? ''),
       modelsDir: models.isNotEmpty ? models : (defaultModelsDir ?? ''),
     );
   }
 
   /// 引擎依赖的全部链模型文件名（与 [_buildChains] 一一对应）。
-  @visibleForTesting
   static List<String> requiredModelFiles() {
     return [
       _colorModel2x,
@@ -82,7 +80,8 @@ class MangaJaNaiEngine {
   ///
   /// 返回缺失组件描述列表；空列表表示就绪。
   static Future<List<String>> missingRequirements() async {
-    if (!Platform.isWindows) return const ['MangaJaNai engine requires Windows'];
+    if (!Platform.isWindows)
+      return const ['MangaJaNai engine requires Windows'];
 
     final paths = await _resolvePaths();
     final missing = <String>[];
@@ -97,9 +96,7 @@ class MangaJaNaiEngine {
     }
 
     if (paths.modelsDir.isEmpty || !Directory(paths.modelsDir).existsSync()) {
-      missing.add(
-        paths.modelsDir.isEmpty ? 'models' : paths.modelsDir,
-      );
+      missing.add(paths.modelsDir.isEmpty ? 'models' : paths.modelsDir);
     } else {
       for (final model in requiredModelFiles()) {
         final modelPath = p.join(paths.modelsDir, model);
@@ -208,20 +205,55 @@ class MangaJaNaiEngine {
   /// [minHeight]/[maxHeight] 为 `0x0` 格式的分辨率区间（0 表示不限制）；
   /// [model] 为模型档位名；不同倍率的 ESRGAN 训练迭代数不同，需分别指定。
   static const _grayBuckets = [
-    (minHeight: '0x0', maxHeight: '0x1250', model: '1200p',
-      iterations2x: '70k', iterations4x: '70k'),
-    (minHeight: '0x1251', maxHeight: '0x1350', model: '1300p',
-      iterations2x: '75k', iterations4x: '75k'),
-    (minHeight: '0x1351', maxHeight: '0x1450', model: '1400p',
-      iterations2x: '70k', iterations4x: '105k'),
-    (minHeight: '0x1451', maxHeight: '0x1550', model: '1500p',
-      iterations2x: '90k', iterations4x: '105k'),
-    (minHeight: '0x1551', maxHeight: '0x1760', model: '1600p',
-      iterations2x: '90k', iterations4x: '70k'),
-    (minHeight: '0x1761', maxHeight: '0x1984', model: '1920p',
-      iterations2x: '70k', iterations4x: '105k'),
-    (minHeight: '0x1985', maxHeight: '0x0', model: '2048p',
-      iterations2x: '95k', iterations4x: '70k'),
+    (
+      minHeight: '0x0',
+      maxHeight: '0x1250',
+      model: '1200p',
+      iterations2x: '70k',
+      iterations4x: '70k',
+    ),
+    (
+      minHeight: '0x1251',
+      maxHeight: '0x1350',
+      model: '1300p',
+      iterations2x: '75k',
+      iterations4x: '75k',
+    ),
+    (
+      minHeight: '0x1351',
+      maxHeight: '0x1450',
+      model: '1400p',
+      iterations2x: '70k',
+      iterations4x: '105k',
+    ),
+    (
+      minHeight: '0x1451',
+      maxHeight: '0x1550',
+      model: '1500p',
+      iterations2x: '90k',
+      iterations4x: '105k',
+    ),
+    (
+      minHeight: '0x1551',
+      maxHeight: '0x1760',
+      model: '1600p',
+      iterations2x: '90k',
+      iterations4x: '70k',
+    ),
+    (
+      minHeight: '0x1761',
+      maxHeight: '0x1984',
+      model: '1920p',
+      iterations2x: '70k',
+      iterations4x: '105k',
+    ),
+    (
+      minHeight: '0x1985',
+      maxHeight: '0x0',
+      model: '2048p',
+      iterations2x: '95k',
+      iterations4x: '70k',
+    ),
   ];
 
   static Map<String, Object> _buildSettings({

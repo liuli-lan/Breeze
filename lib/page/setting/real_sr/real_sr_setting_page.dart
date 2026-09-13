@@ -117,7 +117,8 @@ class _RealSrSettingPageState extends State<RealSrSettingPage> {
     final mangaJaNaiScale = await RealSrSettings.loadMangaJaNaiScale();
     final mangaJaNaiThreshold =
         await RealSrSettings.loadMangaJaNaiGrayscaleThreshold();
-    final mangaJaNaiPythonPath = await RealSrSettings.loadMangaJaNaiPythonPath();
+    final mangaJaNaiPythonPath =
+        await RealSrSettings.loadMangaJaNaiPythonPath();
     final mangaJaNaiBackendSrcDir =
         await RealSrSettings.loadMangaJaNaiBackendSrcDir();
     final mangaJaNaiModelsDir = await RealSrSettings.loadMangaJaNaiModelsDir();
@@ -491,12 +492,12 @@ class _RealSrSettingPageState extends State<RealSrSettingPage> {
     }
 
     if (_useMangaJaNaiEngine) {
-      final effectiveScale = _mangaJaNaiScaleLabels.containsKey(_mangaJaNaiScale)
+      final effectiveScale =
+          _mangaJaNaiScaleLabels.containsKey(_mangaJaNaiScale)
           ? _mangaJaNaiScale
           : 2;
-      final effectiveThreshold = _mangaJaNaiThresholdLabels.containsKey(
-            _mangaJaNaiGrayscaleThreshold,
-          )
+      final effectiveThreshold =
+          _mangaJaNaiThresholdLabels.containsKey(_mangaJaNaiGrayscaleThreshold)
           ? _mangaJaNaiGrayscaleThreshold
           : 12;
       final pathsCustomized =
@@ -556,7 +557,9 @@ class _RealSrSettingPageState extends State<RealSrSettingPage> {
           trailing: FluentDropdown<AndroidNcnnMode>(
             value: _desktopNcnnMode,
             displayValue: _desktopNcnnMode.label,
-            items: {for (final mode in AndroidNcnnMode.values) mode: mode.label},
+            items: {
+              for (final mode in AndroidNcnnMode.values) mode: mode.label,
+            },
             onChanged: _setDesktopNcnnMode,
           ),
         ),

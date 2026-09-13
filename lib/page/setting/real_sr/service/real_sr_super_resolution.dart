@@ -651,7 +651,8 @@ class RealSrSuperResolution {
 
     // Windows / Linux：根据引擎选择走 MangaJaNai 或 NCNN CLI。
     if (Platform.isWindows || Platform.isLinux) {
-      final useMangaJaNai = Platform.isWindows &&
+      final useMangaJaNai =
+          Platform.isWindows &&
           await RealSrSettings.loadDesktopEngine() ==
               DesktopSrEngine.mangaJaNai;
 
