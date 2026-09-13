@@ -2830,6 +2830,60 @@ class Translations$realSr$zh_CN {
 
 	/// zh-CN: '分块信息'
 	String get coremlTileInfo => '分块信息';
+
+	/// zh-CN: '超分引擎'
+	String get engine => '超分引擎';
+
+	/// zh-CN: 'NCNN 为内置方案；MangaJaNai 调用本机已安装的 MangaJaNaiConverterGui 命令行后端'
+	String get engineSubtitle => 'NCNN 为内置方案；MangaJaNai 调用本机已安装的 MangaJaNaiConverterGui 命令行后端';
+
+	/// zh-CN: 'NCNN（内置）'
+	String get engineNcnn => 'NCNN（内置）';
+
+	/// zh-CN: 'MangaJaNai（本地）'
+	String get engineMangaJaNai => 'MangaJaNai（本地）';
+
+	/// zh-CN: '放大倍率'
+	String get mangaJaNaiScale => '放大倍率';
+
+	/// zh-CN: '黑白页按原图高度自动选模型，彩色页自动分流'
+	String get mangaJaNaiScaleSubtitle => '黑白页按原图高度自动选模型，彩色页自动分流';
+
+	/// zh-CN: '灰度判定阈值'
+	String get mangaJaNaiThreshold => '灰度判定阈值';
+
+	/// zh-CN: '黑白页被误判为彩色时调高该值（默认 12）'
+	String get mangaJaNaiThresholdSubtitle => '黑白页被误判为彩色时调高该值（默认 12）';
+
+	/// zh-CN: 'MangaJaNai 路径设置'
+	String get mangaJaNaiPaths => 'MangaJaNai 路径设置';
+
+	/// zh-CN: '留空使用 GUI 默认安装路径'
+	String get mangaJaNaiPathsSubtitle => '留空使用 GUI 默认安装路径';
+
+	/// zh-CN: 'MangaJaNai 路径设置（已自定义）'
+	String get mangaJaNaiPathsCustom => 'MangaJaNai 路径设置（已自定义）';
+
+	/// zh-CN: 'Python 解释器路径'
+	String get mangaJaNaiPathPython => 'Python 解释器路径';
+
+	/// zh-CN: 'CLI 后端目录（含 run_upscale.py）'
+	String get mangaJaNaiPathBackend => 'CLI 后端目录（含 run_upscale.py）';
+
+	/// zh-CN: '模型目录'
+	String get mangaJaNaiPathModels => '模型目录';
+
+	/// zh-CN: 'MangaJaNai 已就绪'
+	String get mangaJaNaiReady => 'MangaJaNai 已就绪';
+
+	/// zh-CN: 'MangaJaNai 未就绪'
+	String get mangaJaNaiNotReady => 'MangaJaNai 未就绪';
+
+	/// zh-CN: '未检测到以下组件（需先在 GUI 中运行过一次任务）：'
+	String get mangaJaNaiMissingHint => '未检测到以下组件（需先在 GUI 中运行过一次任务）：';
+
+	/// zh-CN: '默认：$path'
+	String mangaJaNaiPathHint({required Object path}) => '默认：${path}';
 }
 
 // Path: about
@@ -4714,6 +4768,24 @@ extension on Translations {
 			'realSr.coremlModelOption' => '模型选项（降噪级别）',
 			'realSr.coremlGeneralOption' => '通用选项（放大倍率）',
 			'realSr.coremlTileInfo' => '分块信息',
+			'realSr.engine' => '超分引擎',
+			'realSr.engineSubtitle' => 'NCNN 为内置方案；MangaJaNai 调用本机已安装的 MangaJaNaiConverterGui 命令行后端',
+			'realSr.engineNcnn' => 'NCNN（内置）',
+			'realSr.engineMangaJaNai' => 'MangaJaNai（本地）',
+			'realSr.mangaJaNaiScale' => '放大倍率',
+			'realSr.mangaJaNaiScaleSubtitle' => '黑白页按原图高度自动选模型，彩色页自动分流',
+			'realSr.mangaJaNaiThreshold' => '灰度判定阈值',
+			'realSr.mangaJaNaiThresholdSubtitle' => '黑白页被误判为彩色时调高该值（默认 12）',
+			'realSr.mangaJaNaiPaths' => 'MangaJaNai 路径设置',
+			'realSr.mangaJaNaiPathsSubtitle' => '留空使用 GUI 默认安装路径',
+			'realSr.mangaJaNaiPathsCustom' => 'MangaJaNai 路径设置（已自定义）',
+			'realSr.mangaJaNaiPathPython' => 'Python 解释器路径',
+			'realSr.mangaJaNaiPathBackend' => 'CLI 后端目录（含 run_upscale.py）',
+			'realSr.mangaJaNaiPathModels' => '模型目录',
+			'realSr.mangaJaNaiReady' => 'MangaJaNai 已就绪',
+			'realSr.mangaJaNaiNotReady' => 'MangaJaNai 未就绪',
+			'realSr.mangaJaNaiMissingHint' => '未检测到以下组件（需先在 GUI 中运行过一次任务）：',
+			'realSr.mangaJaNaiPathHint' => ({required Object path}) => '默认：${path}',
 			'about.title' => '关于应用',
 			'about.version' => ({required Object version}) => '版本号: ${version}',
 			'about.loading' => '加载中...',
@@ -4847,6 +4919,8 @@ extension on Translations {
 			'comicList.levelCategory' => ({required Object level}) => '第${level}级分类',
 			'comicList.missingListConfig' => '缺少列表请求配置',
 			'comicList.missingFnPath' => '列表请求缺少 fnPath',
+			_ => null,
+		} ?? switch (path) {
 			'comicEntry.updatedAt' => ({required Object time}) => '更新: ${time}',
 			'comicEntry.finished' => '完结',
 			'comicEntry.ongoing' => '连载中',
@@ -4865,8 +4939,6 @@ extension on Translations {
 			'comicFollow.emptyHint' => '在漫画详情页点击追更按钮即可加入',
 			'comicFollow.unfollow' => '取消追更',
 			'comicFollow.unfollowConfirm' => ({required Object title}) => '确定不再追更《${title}》吗？',
-			_ => null,
-		} ?? switch (path) {
 			'comicFollow.unfollowed' => '已取消追更',
 			'comicFollow.all' => '全部',
 			'comicFollow.unread' => '已更新未看',

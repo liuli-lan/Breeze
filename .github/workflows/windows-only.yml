@@ -1,0 +1,90 @@
+name: Breeze Windows Build (fork, windows only)
+
+# 从上游 push-build.yml 里单独抽出的 build-windows job。
+# 目的：只跑 Windows，不触发 Android / Linux / macOS / iOS 四个 job。
+# 因此也不需要 GIT_CRYPT_KEY（git-crypt 只加密 android/key.properties 与 keystore）。
+# 也不依赖 MY_GITHUB_TOKEN / BREEZE_PLUGIN_GITHUB_TOKEN（内置插件走 jsDelivr 公共 CDN）。
+
+on:
+  push:
+    branches:
+      - mangajanai-win
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    runs-on: windows-2025-vs2026
+    steps:
+      - name: 关闭 Git CRLF 转换
+        run: git config --global core.autocrlf false
+
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: 设置 Java 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: "temurin"
+          java-version: "21"
+
+      - name: 设置 Dart SDK
+        uses: dart-lang/setup-dart@v1
+
+      - name: 设置 Flutter (FVM)
+        run: |
+          dart pub global activate fvm
+          foreach ($c in @("$env:LOCALAPPDATA\Pub\Cache\bin", "$env:USERPROFILE\.pub-cache\bin")) {
+            if (Test-Path $c) {
+              $env:PATH = "$c;$env:PATH"
+              Add-Content -Path $env:GITHUB_PATH -Value $c
+            }
+          }
+          fvm install
+          fvm use --force
+          fvm flutter --version
+          Add-Content -Path $env:GITHUB_PATH -Value "$((Get-Item .).FullName)\.fvm\flutter_sdk\bin"
+
+      - name: 安装 Rust 工具链
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: 缓存 Rust/Tauri 构建产物
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            rust
+            windows-installer/src-tauri
+
+      - name: 设置 pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 10
+
+      - name: 设置 Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: 运行 Windows 构建脚本
+        run: |
+          fvm flutter pub get
+          fvm dart ./script/build_windows.dart
+
+      - name: 上传 Windows 安装器
+        uses: actions/upload-artifact@v6
+        with:
+          name: windows-installer-exe
+          path: windows-installer/src-tauri/target/release/windows-installer.exe
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: 上传可直接运行的 Release 目录
+        uses: actions/upload-artifact@v6
+        with:
+          name: zephyr-release
+          path: build/windows/x64/runner/Release/**
+          if-no-files-found: error
+          retention-days: 14

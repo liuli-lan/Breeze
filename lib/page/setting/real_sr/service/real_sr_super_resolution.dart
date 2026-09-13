@@ -12,6 +12,7 @@ import 'package:zephyr/main.dart';
 import 'package:zephyr/page/comic_info/method/export_comic.dart';
 import 'package:zephyr/page/setting/real_sr/service/android_ncnn_model_config.dart';
 import 'package:zephyr/page/setting/real_sr/service/desktop_ncnn_model_config.dart';
+import 'package:zephyr/page/setting/real_sr/service/mangajanai_engine.dart';
 import 'package:zephyr/page/setting/real_sr/service/real_sr_settings.dart';
 import 'package:zephyr/src/rust/api/image.dart';
 import 'package:zephyr/src/rust/api/simple.dart';
@@ -92,6 +93,13 @@ class RealSrSuperResolution {
     }
 
     if (Platform.isWindows || Platform.isLinux) {
+      // Windows 可切换到本地 MangaJaNai 引擎，此时不检查 NCNN 模型。
+      if (Platform.isWindows &&
+          await RealSrSettings.loadDesktopEngine() ==
+              DesktopSrEngine.mangaJaNai) {
+        return MangaJaNaiEngine.isAvailable;
+      }
+
       final modelRoot = await _modelDirectory;
       final mode = await RealSrSettings.loadDesktopNcnnMode();
       final exeName = DesktopNcnnModelConfig.executableNameFor(mode);
@@ -641,29 +649,46 @@ class RealSrSuperResolution {
       return;
     }
 
-    // Windows / Linux：根据用户选择的策略与降噪档位，解析到具体 CLI 与模型。
+    // Windows / Linux：根据引擎选择走 MangaJaNai 或 NCNN CLI。
     if (Platform.isWindows || Platform.isLinux) {
-      final mode = await RealSrSettings.loadDesktopNcnnMode();
-      final noise = await RealSrSettings.loadDesktopNcnnNoise();
-      final variant = DesktopNcnnModelConfig.variantFor(
-        mode: mode,
-        noise: noise,
-      );
-      final noiseLevel = RealSrNoiseLevel.values.firstWhere(
-        (e) => e.value == variant.noise,
-        orElse: () => RealSrNoiseLevel.conservative,
-      );
+      final useMangaJaNai = Platform.isWindows &&
+          await RealSrSettings.loadDesktopEngine() ==
+              DesktopSrEngine.mangaJaNai;
 
-      final upscaled = await upscale(
-        inputPath: inputPath,
-        outputPath: inputPath,
-        executable: variant.displayName,
-        modelDir: variant.modelDir,
-        scale: variant.scale,
-        noiseLevel: noiseLevel,
-        tileSize: tileSize,
-      );
-      if (!upscaled) return;
+      if (useMangaJaNai) {
+        final mangaJaNaiScale = await RealSrSettings.loadMangaJaNaiScale();
+        final mangaJaNaiThreshold =
+            await RealSrSettings.loadMangaJaNaiGrayscaleThreshold();
+        final upscaled = await upscale(
+          inputPath: inputPath,
+          outputPath: inputPath,
+          mangaJaNaiScale: mangaJaNaiScale,
+          mangaJaNaiGrayscaleThreshold: mangaJaNaiThreshold,
+        );
+        if (!upscaled) return;
+      } else {
+        final mode = await RealSrSettings.loadDesktopNcnnMode();
+        final noise = await RealSrSettings.loadDesktopNcnnNoise();
+        final variant = DesktopNcnnModelConfig.variantFor(
+          mode: mode,
+          noise: noise,
+        );
+        final noiseLevel = RealSrNoiseLevel.values.firstWhere(
+          (e) => e.value == variant.noise,
+          orElse: () => RealSrNoiseLevel.conservative,
+        );
+
+        final upscaled = await upscale(
+          inputPath: inputPath,
+          outputPath: inputPath,
+          executable: variant.displayName,
+          modelDir: variant.modelDir,
+          scale: variant.scale,
+          noiseLevel: noiseLevel,
+          tileSize: tileSize,
+        );
+        if (!upscaled) return;
+      }
     } else {
       final noiseLevel = await RealSrSettings.loadNoiseLevel();
       final upscaled = await upscale(
@@ -686,6 +711,9 @@ class RealSrSuperResolution {
   /// 对单张图片做超分放大。
   ///
   /// 返回是否实际执行了超分；图片格式不支持、模型不可用等跳过场景返回 false。
+  ///
+  /// [mangaJaNaiScale] 非空时（仅 Windows）走本地 MangaJaNai 引擎，
+  /// 此时 NCNN 相关参数被忽略；[mangaJaNaiGrayscaleThreshold] 为灰度判定阈值。
   static Future<bool> upscale({
     required String inputPath,
     String? outputPath,
@@ -695,6 +723,8 @@ class RealSrSuperResolution {
     RealSrNoiseLevel noiseLevel = RealSrNoiseLevel.conservative,
     int tileSize = 0,
     int syncGapMode = 3,
+    int? mangaJaNaiScale,
+    int mangaJaNaiGrayscaleThreshold = 12,
   }) async {
     if (!await isAvailable) {
       logger.d('RealSR 不可用，跳过超分: $inputPath');
@@ -761,6 +791,13 @@ class RealSrSuperResolution {
           );
         } else if (Platform.isIOS || Platform.isMacOS) {
           await _upscaleCoreML(inputPath: pngInputPath, outputPath: out);
+        } else if (Platform.isWindows && mangaJaNaiScale != null) {
+          await _upscaleMangaJaNai(
+            inputPath: pngInputPath,
+            outputPath: out,
+            scale: mangaJaNaiScale,
+            grayscaleThreshold: mangaJaNaiGrayscaleThreshold,
+          );
         } else {
           await _upscaleCli(
             inputPath: pngInputPath,
@@ -857,6 +894,21 @@ class RealSrSuperResolution {
       modelPath: modelPath,
       modelType: 'multiarray',
       config: variant.config,
+    );
+  }
+
+  /// Windows 通过本地 MangaJaNaiConverterGui CLI 后端超分。
+  static Future<void> _upscaleMangaJaNai({
+    required String inputPath,
+    required String outputPath,
+    required int scale,
+    required int grayscaleThreshold,
+  }) async {
+    await MangaJaNaiEngine.upscale(
+      inputPath: inputPath,
+      outputPath: outputPath,
+      scale: scale,
+      grayscaleThreshold: grayscaleThreshold,
     );
   }
 

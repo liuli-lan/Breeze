@@ -358,9 +358,10 @@ Android 端已彻底从 JNI + ncnn 共享库方案切换到 **waifu2x CLI** 方�
 | 修改图片/下载逻辑 | `lib/util/download/`、`lib/network/http/picture/` |
 | 修改 Rust 侧能力 | `rust/src/api/`、`rust/src/qjs/`，然后运行 FRB 生成 |
 | 修改 Windows 安装器 | `windows-installer/src/`、`windows-installer/src-tauri/` |
-| 修改 RealSR 超分逻辑 | `lib/util/real_sr/real_sr_super_resolution.dart`、`lib/page/setting/real_sr/real_sr_setting_page.dart`、`rust/src/api/simple.dart` |
-| 修改 Android RealSR 原生依赖 / waifu2x CLI | `script/prepare_android_waifu2x_deps.py`、`script/build_ncnn_static_android.py`、`script/build_waifu2x_cli_android.py`、`android/app/src/main/cpp/waifu2x_cli/`、`lib/util/real_sr/real_sr_super_resolution.dart` |
-| 修改桌面端 RealSR 策略/模型选择 | `lib/util/real_sr/desktop_ncnn_model_config.dart`、`lib/util/real_sr/real_sr_super_resolution.dart`、`lib/page/setting/real_sr/real_sr_setting_page.dart` |
+| 修改 RealSR 超分逻辑 | `lib/page/setting/real_sr/service/real_sr_super_resolution.dart`、`lib/page/setting/real_sr/real_sr_setting_page.dart`、`rust/src/api/simple.dart` |
+| 修改 Android RealSR 原生依赖 / waifu2x CLI | `script/prepare_android_waifu2x_deps.py`、`script/build_ncnn_static_android.py`、`script/build_waifu2x_cli_android.py`、`android/app/src/main/cpp/waifu2x_cli/`、`lib/page/setting/real_sr/service/real_sr_super_resolution.dart` |
+| 修改桌面端 RealSR 策略/模型选择 | `lib/page/setting/real_sr/service/desktop_ncnn_model_config.dart`、`lib/page/setting/real_sr/service/real_sr_super_resolution.dart`、`lib/page/setting/real_sr/real_sr_setting_page.dart` |
+| 修改 MangaJaNai 本地超分引擎（Windows） | `lib/page/setting/real_sr/service/mangajanai_engine.dart`、`lib/page/setting/real_sr/service/real_sr_settings.dart`、`lib/type/enum.dart`（`DesktopSrEngine`） |
 | 修改 CoreML 超分（iOS/macOS） | `packages/coreml_upscale/`、`lib/debug/coreml_upscale_debug_page.dart`、`asset/coreml_models/`、`script/convert_realcugan_coreml.py` |
 | 导入/导出应用数据 | `lib/page/setting/data_backup/`、`rust/src/api/data_backup.rs` |
 | 修改 CI/CD | `.github/workflows/`、`script/` |

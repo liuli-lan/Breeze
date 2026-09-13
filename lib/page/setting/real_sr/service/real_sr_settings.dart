@@ -26,6 +26,13 @@ class RealSrSettings {
   static const _keyAndroidNcnnNoise = 'realsr_android_ncnn_noise';
   static const _keyDesktopNcnnMode = 'realsr_desktop_ncnn_mode';
   static const _keyDesktopNcnnNoise = 'realsr_desktop_ncnn_noise';
+  static const _keyDesktopEngine = 'realsr_desktop_engine';
+  static const _keyMangaJaNaiScale = 'realsr_mangajanai_scale';
+  static const _keyMangaJaNaiGrayscaleThreshold =
+      'realsr_mangajanai_grayscale_threshold';
+  static const _keyMangaJaNaiPythonPath = 'realsr_mangajanai_python_path';
+  static const _keyMangaJaNaiBackendSrcDir = 'realsr_mangajanai_backend_src_dir';
+  static const _keyMangaJaNaiModelsDir = 'realsr_mangajanai_models_dir';
 
   /// 根据当前运行平台返回推荐的默认并发数。
   ///
@@ -195,5 +202,76 @@ class RealSrSettings {
   static Future<void> saveDesktopNcnnNoise(AndroidNcnnNoise value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyDesktopNcnnNoise, value.name);
+  }
+
+  /// 桌面端（Windows）使用的超分引擎，默认内置 NCNN。
+  static Future<DesktopSrEngine> loadDesktopEngine() async {
+    final prefs = await SharedPreferences.getInstance();
+    final name = prefs.getString(_keyDesktopEngine);
+    return DesktopSrEngine.values.firstWhere(
+      (e) => e.name == name,
+      orElse: () => DesktopSrEngine.ncnn,
+    );
+  }
+
+  static Future<void> saveDesktopEngine(DesktopSrEngine value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyDesktopEngine, value.name);
+  }
+
+  /// MangaJaNai 引擎的目标放大倍率，仅支持 2x / 4x，默认 2x。
+  static Future<int> loadMangaJaNaiScale() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getInt(_keyMangaJaNaiScale) == 4 ? 4 : 2;
+  }
+
+  static Future<void> saveMangaJaNaiScale(int value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_keyMangaJaNaiScale, value == 4 ? 4 : 2);
+  }
+
+  /// MangaJaNai 引擎的灰度判定阈值，与 GUI 的同名设置一致，默认 12。
+  ///
+  /// 黑白页被误判为彩色进入彩色链时，调高该值。
+  static Future<int> loadMangaJaNaiGrayscaleThreshold() async {
+    final prefs = await SharedPreferences.getInstance();
+    final value = prefs.getInt(_keyMangaJaNaiGrayscaleThreshold);
+    return (value == null || value <= 0) ? 12 : value;
+  }
+
+  static Future<void> saveMangaJaNaiGrayscaleThreshold(int value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_keyMangaJaNaiGrayscaleThreshold, value);
+  }
+
+  /// MangaJaNai CLI 后端路径覆写，空字符串表示使用默认安装路径。
+  static Future<String> loadMangaJaNaiPythonPath() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_keyMangaJaNaiPythonPath) ?? '';
+  }
+
+  static Future<void> saveMangaJaNaiPythonPath(String value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyMangaJaNaiPythonPath, value.trim());
+  }
+
+  static Future<String> loadMangaJaNaiBackendSrcDir() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_keyMangaJaNaiBackendSrcDir) ?? '';
+  }
+
+  static Future<void> saveMangaJaNaiBackendSrcDir(String value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyMangaJaNaiBackendSrcDir, value.trim());
+  }
+
+  static Future<String> loadMangaJaNaiModelsDir() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_keyMangaJaNaiModelsDir) ?? '';
+  }
+
+  static Future<void> saveMangaJaNaiModelsDir(String value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyMangaJaNaiModelsDir, value.trim());
   }
 }

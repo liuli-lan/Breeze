@@ -1,5 +1,6 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:json_annotation/json_annotation.dart';
+import 'package:zephyr/i18n/strings.g.dart';
 
 @JsonEnum()
 enum RealSrResolutionThreshold {
@@ -54,6 +55,24 @@ enum RealSrNoiseLevel {
     denoise1x => '降噪 1x',
     denoise2x => '降噪 2x',
     denoise3x => '降噪 3x',
+  };
+}
+
+/// 桌面端（Windows）超分引擎。
+///
+/// - [ncnn]：内置 waifu2x / Real-CUGAN ncnn 方案，模型随应用下载。
+/// - [mangaJaNai]：调用本机已安装的 MangaJaNaiConverterGui CLI 后端，
+///   模型与 Python 运行时由 GUI 维护，仅 Windows 可用。
+@JsonEnum()
+enum DesktopSrEngine {
+  @JsonValue('ncnn')
+  ncnn,
+  @JsonValue('mangaJaNai')
+  mangaJaNai;
+
+  String get label => switch (this) {
+    ncnn => t.realSr.engineNcnn,
+    mangaJaNai => t.realSr.engineMangaJaNai,
   };
 }
 

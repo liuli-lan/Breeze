@@ -9,6 +9,7 @@ import 'package:zephyr/main.dart';
 import 'package:zephyr/page/setting/common/setting_ui.dart';
 import 'package:zephyr/page/setting/real_sr/service/android_ncnn_model_config.dart';
 import 'package:zephyr/page/setting/real_sr/service/desktop_ncnn_model_config.dart';
+import 'package:zephyr/page/setting/real_sr/service/mangajanai_engine.dart';
 import 'package:zephyr/page/setting/real_sr/service/real_sr_settings.dart';
 import 'package:zephyr/page/setting/real_sr/service/real_sr_super_resolution.dart';
 import 'package:zephyr/type/enum.dart';
@@ -36,6 +37,18 @@ const Map<int, String> _tileSizeLabels = {
 final List<int> _concurrencyOptions = _concurrencyLabels.keys.toList()..sort();
 final List<int> _tileSizeOptions = _tileSizeLabels.keys.toList()..sort();
 
+/// MangaJaNai 放大倍率可选项。
+const Map<int, String> _mangaJaNaiScaleLabels = {2: '2x', 4: '4x'};
+
+/// MangaJaNai 灰度判定阈值可选项（与 GUI 同名设置，默认 12）。
+const Map<int, String> _mangaJaNaiThresholdLabels = {
+  4: '4',
+  8: '8',
+  12: '12',
+  24: '24',
+  48: '48',
+};
+
 @RoutePage()
 class RealSrSettingPage extends StatefulWidget {
   const RealSrSettingPage({super.key});
@@ -53,6 +66,13 @@ class _RealSrSettingPageState extends State<RealSrSettingPage> {
   int _tileSize = 0;
   AndroidNcnnMode _desktopNcnnMode = DesktopNcnnModelConfig.defaultMode;
   AndroidNcnnNoise _desktopNcnnNoise = DesktopNcnnModelConfig.defaultNoise;
+  DesktopSrEngine _desktopEngine = DesktopSrEngine.ncnn;
+  int _mangaJaNaiScale = 2;
+  int _mangaJaNaiGrayscaleThreshold = 12;
+  String _mangaJaNaiPythonPath = '';
+  String _mangaJaNaiBackendSrcDir = '';
+  String _mangaJaNaiModelsDir = '';
+  List<String> _mangaJaNaiMissing = const [];
   CoreMLModelFamily _coreMLFamily = CoreMLModelConfig.defaultFamily;
   CoreMLModelVariant _coreMLVariant = CoreMLModelConfig.defaultVariant;
   bool _isAvailable = false;
@@ -61,6 +81,10 @@ class _RealSrSettingPageState extends State<RealSrSettingPage> {
   double _downloadProgress = 0;
 
   bool get _usesCoreML => Platform.isIOS || Platform.isMacOS;
+
+  /// Windows 下是否选择了本地 MangaJaNai 引擎。
+  bool get _useMangaJaNaiEngine =>
+      Platform.isWindows && _desktopEngine == DesktopSrEngine.mangaJaNai;
 
   List<RealSrResolutionThreshold> get _availableThresholds {
     if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
@@ -89,6 +113,14 @@ class _RealSrSettingPageState extends State<RealSrSettingPage> {
   Future<void> _loadSettings() async {
     final family = await RealSrSettings.loadCoreMLFamily();
     final variant = await RealSrSettings.loadCoreMLVariant(family);
+    final desktopEngine = await RealSrSettings.loadDesktopEngine();
+    final mangaJaNaiScale = await RealSrSettings.loadMangaJaNaiScale();
+    final mangaJaNaiThreshold =
+        await RealSrSettings.loadMangaJaNaiGrayscaleThreshold();
+    final mangaJaNaiPythonPath = await RealSrSettings.loadMangaJaNaiPythonPath();
+    final mangaJaNaiBackendSrcDir =
+        await RealSrSettings.loadMangaJaNaiBackendSrcDir();
+    final mangaJaNaiModelsDir = await RealSrSettings.loadMangaJaNaiModelsDir();
     final results = await Future.wait([
       RealSrSettings.loadAutoUpscale(),
       RealSrSettings.loadResolutionThreshold(),
@@ -108,10 +140,20 @@ class _RealSrSettingPageState extends State<RealSrSettingPage> {
       _desktopNcnnMode = results[4] as AndroidNcnnMode;
       _desktopNcnnNoise = results[5] as AndroidNcnnNoise;
       _isAvailable = results[6] as bool;
+      _desktopEngine = desktopEngine;
+      _mangaJaNaiScale = mangaJaNaiScale;
+      _mangaJaNaiGrayscaleThreshold = mangaJaNaiThreshold;
+      _mangaJaNaiPythonPath = mangaJaNaiPythonPath;
+      _mangaJaNaiBackendSrcDir = mangaJaNaiBackendSrcDir;
+      _mangaJaNaiModelsDir = mangaJaNaiModelsDir;
       _coreMLFamily = family;
       _coreMLVariant = variant;
       _loading = false;
     });
+
+    if (_useMangaJaNaiEngine) {
+      await _refreshMangaJaNaiStatus();
+    }
   }
 
   Future<void> _setAutoUpscale(bool value) async {
@@ -144,6 +186,102 @@ class _RealSrSettingPageState extends State<RealSrSettingPage> {
     setState(() => _desktopNcnnNoise = value);
   }
 
+  Future<void> _setDesktopEngine(DesktopSrEngine value) async {
+    await RealSrSettings.saveDesktopEngine(value);
+    setState(() => _desktopEngine = value);
+    await _refreshAvailability();
+    if (_useMangaJaNaiEngine) {
+      await _refreshMangaJaNaiStatus();
+    }
+  }
+
+  Future<void> _setMangaJaNaiScale(int value) async {
+    await RealSrSettings.saveMangaJaNaiScale(value);
+    setState(() => _mangaJaNaiScale = value);
+  }
+
+  Future<void> _setMangaJaNaiGrayscaleThreshold(int value) async {
+    await RealSrSettings.saveMangaJaNaiGrayscaleThreshold(value);
+    setState(() => _mangaJaNaiGrayscaleThreshold = value);
+  }
+
+  Future<void> _refreshMangaJaNaiStatus() async {
+    final missing = await MangaJaNaiEngine.missingRequirements();
+    if (mounted) setState(() => _mangaJaNaiMissing = missing);
+  }
+
+  Future<void> _refreshAvailability() async {
+    final available = await RealSrSuperResolution.isAvailable;
+    if (mounted) setState(() => _isAvailable = available);
+  }
+
+  /// 弹窗编辑 MangaJaNai CLI 后端的三个路径，留空回退默认安装位置。
+  Future<void> _editMangaJaNaiPaths() async {
+    final pythonCtrl = TextEditingController(text: _mangaJaNaiPythonPath);
+    final backendCtrl = TextEditingController(text: _mangaJaNaiBackendSrcDir);
+    final modelsCtrl = TextEditingController(text: _mangaJaNaiModelsDir);
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(t.realSr.mangaJaNaiPaths),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: pythonCtrl,
+                decoration: InputDecoration(
+                  labelText: t.realSr.mangaJaNaiPathPython,
+                  hintText: MangaJaNaiEngine.defaultPythonPath,
+                ),
+              ),
+              TextField(
+                controller: backendCtrl,
+                decoration: InputDecoration(
+                  labelText: t.realSr.mangaJaNaiPathBackend,
+                  hintText: MangaJaNaiEngine.defaultBackendSrcDir,
+                ),
+              ),
+              TextField(
+                controller: modelsCtrl,
+                decoration: InputDecoration(
+                  labelText: t.realSr.mangaJaNaiPathModels,
+                  hintText: MangaJaNaiEngine.defaultModelsDir,
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(t.common.cancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(t.common.save),
+          ),
+        ],
+      ),
+    );
+
+    if (saved != true || !mounted) return;
+
+    await Future.wait([
+      RealSrSettings.saveMangaJaNaiPythonPath(pythonCtrl.text),
+      RealSrSettings.saveMangaJaNaiBackendSrcDir(backendCtrl.text),
+      RealSrSettings.saveMangaJaNaiModelsDir(modelsCtrl.text),
+    ]);
+    setState(() {
+      _mangaJaNaiPythonPath = pythonCtrl.text.trim();
+      _mangaJaNaiBackendSrcDir = backendCtrl.text.trim();
+      _mangaJaNaiModelsDir = modelsCtrl.text.trim();
+    });
+    await _refreshMangaJaNaiStatus();
+    await _refreshAvailability();
+  }
+
   Future<void> _setCoreMLFamily(CoreMLModelFamily value) async {
     final newVariant = value.variants.first;
     await Future.wait([
@@ -159,11 +297,6 @@ class _RealSrSettingPageState extends State<RealSrSettingPage> {
   Future<void> _setCoreMLVariant(CoreMLModelVariant value) async {
     await RealSrSettings.saveCoreMLVariant(value);
     setState(() => _coreMLVariant = value);
-  }
-
-  Future<void> _refreshAvailability() async {
-    final available = await RealSrSuperResolution.isAvailable;
-    if (mounted) setState(() => _isAvailable = available);
   }
 
   Future<void> _downloadModel() async {
@@ -335,32 +468,144 @@ class _RealSrSettingPageState extends State<RealSrSettingPage> {
       ];
     }
 
-    return [
-      ListTile(
-        leading: const Icon(Icons.speed_outlined),
-        title: Text(t.realSr.desktopStrategy),
-        subtitle: Text(t.realSr.desktopStrategySubtitle),
-        trailing: FluentDropdown<AndroidNcnnMode>(
-          value: _desktopNcnnMode,
-          displayValue: _desktopNcnnMode.label,
-          items: {for (final mode in AndroidNcnnMode.values) mode: mode.label},
-          onChanged: _setDesktopNcnnMode,
+    // Windows / Linux
+    final items = <Widget>[];
+
+    // Linux 无本地 MangaJaNai GUI 安装约定，仅 Windows 提供引擎切换。
+    if (Platform.isWindows) {
+      items.add(
+        ListTile(
+          leading: const Icon(Icons.memory_outlined),
+          title: Text(t.realSr.engine),
+          subtitle: Text(t.realSr.engineSubtitle),
+          trailing: FluentDropdown<DesktopSrEngine>(
+            value: _desktopEngine,
+            displayValue: _desktopEngine.label,
+            items: {
+              for (final engine in DesktopSrEngine.values) engine: engine.label,
+            },
+            onChanged: _setDesktopEngine,
+          ),
         ),
-      ),
-      ListTile(
-        leading: const Icon(Icons.healing_outlined),
-        title: Text(t.realSr.desktopNoiseLevel),
-        subtitle: Text(t.realSr.desktopNoiseLevelSubtitle),
-        trailing: FluentDropdown<AndroidNcnnNoise>(
-          value: _desktopNcnnNoise,
-          displayValue: _desktopNcnnNoise.label,
-          items: {
-            for (final noise in AndroidNcnnNoise.values) noise: noise.label,
-          },
-          onChanged: _setDesktopNcnnNoise,
+      );
+    }
+
+    if (_useMangaJaNaiEngine) {
+      final effectiveScale = _mangaJaNaiScaleLabels.containsKey(_mangaJaNaiScale)
+          ? _mangaJaNaiScale
+          : 2;
+      final effectiveThreshold = _mangaJaNaiThresholdLabels.containsKey(
+            _mangaJaNaiGrayscaleThreshold,
+          )
+          ? _mangaJaNaiGrayscaleThreshold
+          : 12;
+      final pathsCustomized =
+          _mangaJaNaiPythonPath.isNotEmpty ||
+          _mangaJaNaiBackendSrcDir.isNotEmpty ||
+          _mangaJaNaiModelsDir.isNotEmpty;
+      items.addAll([
+        ListTile(
+          leading: const Icon(Icons.open_in_full_outlined),
+          title: Text(t.realSr.mangaJaNaiScale),
+          subtitle: Text(t.realSr.mangaJaNaiScaleSubtitle),
+          trailing: FluentDropdown<int>(
+            value: effectiveScale,
+            displayValue: _mangaJaNaiScaleLabels[effectiveScale]!,
+            items: {
+              for (final entry in _mangaJaNaiScaleLabels.entries)
+                entry.key: entry.value,
+            },
+            onChanged: (value) => _setMangaJaNaiScale(value),
+          ),
         ),
+        ListTile(
+          leading: const Icon(Icons.filter_b_and_w_outlined),
+          title: Text(t.realSr.mangaJaNaiThreshold),
+          subtitle: Text(t.realSr.mangaJaNaiThresholdSubtitle),
+          trailing: FluentDropdown<int>(
+            value: effectiveThreshold,
+            displayValue: _mangaJaNaiThresholdLabels[effectiveThreshold]!,
+            items: {
+              for (final entry in _mangaJaNaiThresholdLabels.entries)
+                entry.key: entry.value,
+            },
+            onChanged: (value) => _setMangaJaNaiGrayscaleThreshold(value),
+          ),
+        ),
+        ListTile(
+          leading: const Icon(Icons.folder_open_outlined),
+          title: Text(
+            pathsCustomized
+                ? t.realSr.mangaJaNaiPathsCustom
+                : t.realSr.mangaJaNaiPaths,
+          ),
+          subtitle: Text(t.realSr.mangaJaNaiPathsSubtitle),
+          trailing: TextButton(
+            onPressed: _editMangaJaNaiPaths,
+            child: Text(t.realSr.importModelAction),
+          ),
+        ),
+        _buildMangaJaNaiStatusTile(),
+      ]);
+    } else {
+      items.addAll([
+        ListTile(
+          leading: const Icon(Icons.speed_outlined),
+          title: Text(t.realSr.desktopStrategy),
+          subtitle: Text(t.realSr.desktopStrategySubtitle),
+          trailing: FluentDropdown<AndroidNcnnMode>(
+            value: _desktopNcnnMode,
+            displayValue: _desktopNcnnMode.label,
+            items: {for (final mode in AndroidNcnnMode.values) mode: mode.label},
+            onChanged: _setDesktopNcnnMode,
+          ),
+        ),
+        ListTile(
+          leading: const Icon(Icons.healing_outlined),
+          title: Text(t.realSr.desktopNoiseLevel),
+          subtitle: Text(t.realSr.desktopNoiseLevelSubtitle),
+          trailing: FluentDropdown<AndroidNcnnNoise>(
+            value: _desktopNcnnNoise,
+            displayValue: _desktopNcnnNoise.label,
+            items: {
+              for (final noise in AndroidNcnnNoise.values) noise: noise.label,
+            },
+            onChanged: _setDesktopNcnnNoise,
+          ),
+        ),
+      ]);
+    }
+
+    return items;
+  }
+
+  /// MangaJaNai CLI 后端就绪状态瓦片。
+  Widget _buildMangaJaNaiStatusTile() {
+    if (_mangaJaNaiMissing.isEmpty) {
+      return ListTile(
+        leading: Icon(
+          Icons.check_circle,
+          color: Theme.of(context).colorScheme.primary,
+        ),
+        title: Text(t.realSr.mangaJaNaiReady),
+      );
+    }
+
+    return ListTile(
+      leading: const Icon(Icons.warning_amber_rounded),
+      title: Text(t.realSr.mangaJaNaiNotReady),
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(t.realSr.mangaJaNaiMissingHint),
+          const SizedBox(height: 4),
+          Text(
+            _mangaJaNaiMissing.take(6).join('\n'),
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
       ),
-    ];
+    );
   }
 
   Widget _buildModelManagementTile() {
@@ -553,9 +798,12 @@ class _RealSrSettingPageState extends State<RealSrSettingPage> {
                 const SizedBox(height: 8),
                 const Divider(height: 1, thickness: 0.3),
                 settingSectionTitle(context, t.realSr.modelManagementSection),
-                _buildModelManagementTile(),
-                _buildManualDownloadTile(),
-                _buildImportModelTile(),
+                // MangaJaNai 引擎使用本机 GUI 的模型，无需下载/导入内置模型。
+                if (!_useMangaJaNaiEngine) ...[
+                  _buildModelManagementTile(),
+                  _buildManualDownloadTile(),
+                  _buildImportModelTile(),
+                ],
                 const SizedBox(height: 32),
               ],
             ),

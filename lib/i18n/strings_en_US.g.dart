@@ -1080,6 +1080,24 @@ class _Translations$realSr$en_US extends Translations$realSr$zh_CN {
 	@override String get coremlModelOption => 'Model option (denoise level)';
 	@override String get coremlGeneralOption => 'General option (scale)';
 	@override String get coremlTileInfo => 'Tile info';
+	@override String get engine => 'Upscale Engine';
+	@override String get engineSubtitle => 'NCNN is built-in; MangaJaNai uses a locally installed MangaJaNaiConverterGui CLI backend';
+	@override String get engineNcnn => 'NCNN (built-in)';
+	@override String get engineMangaJaNai => 'MangaJaNai (local)';
+	@override String get mangaJaNaiScale => 'Upscale Factor';
+	@override String get mangaJaNaiScaleSubtitle => 'Grayscale pages auto-pick models by height; color pages are routed automatically';
+	@override String get mangaJaNaiThreshold => 'Grayscale Threshold';
+	@override String get mangaJaNaiThresholdSubtitle => 'Raise this if grayscale pages are misdetected as color (default 12)';
+	@override String get mangaJaNaiPaths => 'MangaJaNai Paths';
+	@override String get mangaJaNaiPathsSubtitle => 'Leave empty to use the default GUI install paths';
+	@override String get mangaJaNaiPathsCustom => 'MangaJaNai Paths (customized)';
+	@override String get mangaJaNaiPathPython => 'Python interpreter path';
+	@override String get mangaJaNaiPathBackend => 'CLI backend directory (with run_upscale.py)';
+	@override String get mangaJaNaiPathModels => 'Models directory';
+	@override String get mangaJaNaiReady => 'MangaJaNai ready';
+	@override String get mangaJaNaiNotReady => 'MangaJaNai not ready';
+	@override String get mangaJaNaiMissingHint => 'Missing components (run a job in the GUI at least once):';
+	@override String mangaJaNaiPathHint({required Object path}) => 'Default: ${path}';
 }
 
 // Path: about
@@ -2411,6 +2429,24 @@ extension on TranslationsEnUs {
 			'realSr.coremlModelOption' => 'Model option (denoise level)',
 			'realSr.coremlGeneralOption' => 'General option (scale)',
 			'realSr.coremlTileInfo' => 'Tile info',
+			'realSr.engine' => 'Upscale Engine',
+			'realSr.engineSubtitle' => 'NCNN is built-in; MangaJaNai uses a locally installed MangaJaNaiConverterGui CLI backend',
+			'realSr.engineNcnn' => 'NCNN (built-in)',
+			'realSr.engineMangaJaNai' => 'MangaJaNai (local)',
+			'realSr.mangaJaNaiScale' => 'Upscale Factor',
+			'realSr.mangaJaNaiScaleSubtitle' => 'Grayscale pages auto-pick models by height; color pages are routed automatically',
+			'realSr.mangaJaNaiThreshold' => 'Grayscale Threshold',
+			'realSr.mangaJaNaiThresholdSubtitle' => 'Raise this if grayscale pages are misdetected as color (default 12)',
+			'realSr.mangaJaNaiPaths' => 'MangaJaNai Paths',
+			'realSr.mangaJaNaiPathsSubtitle' => 'Leave empty to use the default GUI install paths',
+			'realSr.mangaJaNaiPathsCustom' => 'MangaJaNai Paths (customized)',
+			'realSr.mangaJaNaiPathPython' => 'Python interpreter path',
+			'realSr.mangaJaNaiPathBackend' => 'CLI backend directory (with run_upscale.py)',
+			'realSr.mangaJaNaiPathModels' => 'Models directory',
+			'realSr.mangaJaNaiReady' => 'MangaJaNai ready',
+			'realSr.mangaJaNaiNotReady' => 'MangaJaNai not ready',
+			'realSr.mangaJaNaiMissingHint' => 'Missing components (run a job in the GUI at least once):',
+			'realSr.mangaJaNaiPathHint' => ({required Object path}) => 'Default: ${path}',
 			'about.title' => 'About app',
 			'about.version' => ({required Object version}) => 'Version: ${version}',
 			'about.loading' => 'Loading...',
@@ -2545,6 +2581,8 @@ extension on TranslationsEnUs {
 			'comicList.missingListConfig' => 'Missing list request configuration',
 			'comicList.missingFnPath' => 'List request missing fnPath',
 			'comicEntry.updatedAt' => ({required Object time}) => 'Updated: ${time}',
+			_ => null,
+		} ?? switch (path) {
 			'comicEntry.finished' => 'Finished',
 			'comicEntry.ongoing' => 'Ongoing',
 			'comicEntry.likes' => ({required Object count}) => 'Likes ${count}',
@@ -2563,8 +2601,6 @@ extension on TranslationsEnUs {
 			'comicFollow.unfollow' => 'Unfollow',
 			'comicFollow.unfollowConfirm' => ({required Object title}) => 'Stop following "${title}"?',
 			'comicFollow.unfollowed' => 'Unfollowed',
-			_ => null,
-		} ?? switch (path) {
 			'comicFollow.all' => 'All',
 			'comicFollow.unread' => 'Updated and unread',
 			'comicFollow.sort' => 'Sort',
