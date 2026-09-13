@@ -236,6 +236,7 @@ class FluentDropdown<T> extends StatefulWidget {
     required this.displayValue,
     required this.items,
     required this.onChanged,
+    this.enabled = true,
   });
 
   /// Currently selected value.
@@ -249,6 +250,10 @@ class FluentDropdown<T> extends StatefulWidget {
 
   /// Called when the user selects a different value.
   final ValueChanged<T>? onChanged;
+
+  /// Whether the dropdown can be opened. When false the trigger is rendered
+  /// dimmed and taps are ignored.
+  final bool enabled;
 
   @override
   State<FluentDropdown<T>> createState() => _FluentDropdownState<T>();
@@ -392,11 +397,14 @@ class _FluentDropdownState<T> extends State<FluentDropdown<T>>
     final textColor = context.textColor;
 
     final textStyle = Theme.of(context).textTheme.bodyMedium;
+    final isEnabled = widget.enabled && widget.onChanged != null;
+    final textAlpha = isEnabled ? 0.9 : 0.38;
+    final iconAlpha = isEnabled ? 0.5 : 0.28;
 
     return CompositedTransformTarget(
       link: _layerLink,
       child: GestureDetector(
-        onTap: widget.onChanged == null ? null : _toggle,
+        onTap: isEnabled ? _toggle : null,
         child: Container(
           constraints: const BoxConstraints(maxWidth: 180),
           padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
@@ -416,7 +424,7 @@ class _FluentDropdownState<T> extends State<FluentDropdown<T>>
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: textStyle?.copyWith(
-                    color: textColor.withValues(alpha: 0.9),
+                    color: textColor.withValues(alpha: textAlpha),
                   ),
                 ),
               ),
@@ -427,7 +435,7 @@ class _FluentDropdownState<T> extends State<FluentDropdown<T>>
                 child: Icon(
                   Icons.keyboard_arrow_down,
                   size: 18,
-                  color: textColor.withValues(alpha: 0.5),
+                  color: textColor.withValues(alpha: iconAlpha),
                 ),
               ),
             ],

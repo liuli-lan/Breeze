@@ -35,15 +35,13 @@ class RealSrSettings {
       'realsr_mangajanai_backend_src_dir';
   static const _keyMangaJaNaiModelsDir = 'realsr_mangajanai_models_dir';
 
-  /// 根据当前运行平台返回推荐的默认并发数。
+  /// 默认并发数：**全平台固定 1（单线程）**。
   ///
-  /// - 桌面端（Windows / Linux / macOS）：2
-  /// - 移动设备（Android / iOS）：1
-  static int get defaultConcurrency {
-    if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) return 2;
-    if (Platform.isAndroid || Platform.isIOS) return 1;
-    return 1;
-  }
+  /// 依据：MangaJaNai 后端单进程最快——多个独立进程各持 CUDA context，在消费级卡上
+  /// 会互相争抢（context 切换、显存带宽、L2 局部性），176 张实测并行反而慢 20%。
+  /// NCNN / CoreML 沿用同一策略以保持行为一致，同时避免后台超分与前台应用争抢
+  /// 显存和 GPU。需要时用户可在设置页手动调高。
+  static int get defaultConcurrency => 1;
 
   static Future<bool> loadAutoUpscale() async {
     final prefs = await SharedPreferences.getInstance();

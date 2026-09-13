@@ -62,7 +62,7 @@ class _RealSrSettingPageState extends State<RealSrSettingPage> {
   bool _autoUpscale = false;
   RealSrResolutionThreshold _resolutionThreshold =
       RealSrResolutionThreshold.p720;
-  int _concurrency = 2;
+  int _concurrency = 1;
   int _tileSize = 0;
   AndroidNcnnMode _desktopNcnnMode = DesktopNcnnModelConfig.defaultMode;
   AndroidNcnnNoise _desktopNcnnNoise = DesktopNcnnModelConfig.defaultNoise;
@@ -547,6 +547,13 @@ class _RealSrSettingPageState extends State<RealSrSettingPage> {
           ),
         ),
         _buildMangaJaNaiStatusTile(),
+        // NVIDIA 的「CUDA - 系统内存回退策略」若保持默认，显存不足时会回退到
+        // 系统内存，超分速度差一个数量级。这是驱动侧设置，应用无法代劳，只能提示。
+        ListTile(
+          leading: const Icon(Icons.memory_outlined),
+          title: Text(t.realSr.mangaJaNaiNvidiaTitle),
+          subtitle: Text(t.realSr.mangaJaNaiNvidiaSubtitle),
+        ),
       ]);
     } else {
       items.addAll([
@@ -757,7 +764,11 @@ class _RealSrSettingPageState extends State<RealSrSettingPage> {
                     return ListTile(
                       leading: const Icon(Icons.speed_outlined),
                       title: Text(t.realSr.concurrency),
-                      subtitle: Text(t.realSr.concurrencySubtitle),
+                      subtitle: Text(
+                        _useMangaJaNaiEngine
+                            ? t.realSr.concurrencyMangaJaNaiNote
+                            : t.realSr.concurrencySubtitle,
+                      ),
                       trailing: FluentDropdown<int>(
                         value: effective,
                         displayValue: _concurrencyLabels[effective]!,
@@ -765,6 +776,9 @@ class _RealSrSettingPageState extends State<RealSrSettingPage> {
                           for (final option in _concurrencyOptions)
                             option: _concurrencyLabels[option]!,
                         },
+                        // MangaJaNai 固定单线程，本项对其无效：禁用下拉但保留
+                        // 文字正常显示，以免说明文案跟着变灰看不清。
+                        enabled: !_useMangaJaNaiEngine,
                         onChanged: _setConcurrency,
                       ),
                     );
@@ -779,7 +793,11 @@ class _RealSrSettingPageState extends State<RealSrSettingPage> {
                       return ListTile(
                         leading: const Icon(Icons.grid_on_outlined),
                         title: Text(t.realSr.tileSize),
-                        subtitle: Text(t.realSr.tileSizeSubtitle),
+                        subtitle: Text(
+                          _useMangaJaNaiEngine
+                              ? t.realSr.tileSizeMangaJaNaiNote
+                              : t.realSr.tileSizeSubtitle,
+                        ),
                         trailing: FluentDropdown<int>(
                           value: effective,
                           displayValue: _tileSizeLabels[effective]!,
@@ -787,6 +805,8 @@ class _RealSrSettingPageState extends State<RealSrSettingPage> {
                             for (final option in _tileSizeOptions)
                               option: _tileSizeLabels[option]!,
                           },
+                          // 同上：MangaJaNai 固定 512 分块，本项无效。
+                          enabled: !_useMangaJaNaiEngine,
                           onChanged: _setTileSize,
                         ),
                       );

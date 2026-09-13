@@ -2648,14 +2648,20 @@ class Translations$realSr$zh_CN {
 	/// zh-CN: '并发数量'
 	String get concurrency => '并发数量';
 
-	/// zh-CN: '高端显卡可适当提高，移动设备或性能较低时不建议设置高于1的并发量'
-	String get concurrencySubtitle => '高端显卡可适当提高，移动设备或性能较低时不建议设置高于1的并发量';
+	/// zh-CN: '默认 1（单线程）；仅在确认显存充裕时才建议调高'
+	String get concurrencySubtitle => '默认 1（单线程）；仅在确认显存充裕时才建议调高';
+
+	/// zh-CN: 'MangaJaNai 固定单线程批量处理，本项对其无效'
+	String get concurrencyMangaJaNaiNote => 'MangaJaNai 固定单线程批量处理，本项对其无效';
 
 	/// zh-CN: '分块大小'
 	String get tileSize => '分块大小';
 
 	/// zh-CN: '遇到崩溃可设置较小值，0为不分块，桌面端可尝试设置为0'
 	String get tileSizeSubtitle => '遇到崩溃可设置较小值，0为不分块，桌面端可尝试设置为0';
+
+	/// zh-CN: 'MangaJaNai 固定使用 512 分块，本项对其无效'
+	String get tileSizeMangaJaNaiNote => 'MangaJaNai 固定使用 512 分块，本项对其无效';
 
 	/// zh-CN: '模型'
 	String get modelSection => '模型';
@@ -2854,6 +2860,12 @@ class Translations$realSr$zh_CN {
 
 	/// zh-CN: '黑白页被误判为彩色时调高该值（默认 12）'
 	String get mangaJaNaiThresholdSubtitle => '黑白页被误判为彩色时调高该值（默认 12）';
+
+	/// zh-CN: '建议调整 NVIDIA 显存回退策略'
+	String get mangaJaNaiNvidiaTitle => '建议调整 NVIDIA 显存回退策略';
+
+	/// zh-CN: 'NVIDIA 控制面板 → 管理 3D 设置 →「CUDA - 系统内存回退策略」改为「偏好不使用系统内存回退」，否则超分速度可能慢一个数量级'
+	String get mangaJaNaiNvidiaSubtitle => 'NVIDIA 控制面板 → 管理 3D 设置 →「CUDA - 系统内存回退策略」改为「偏好不使用系统内存回退」，否则超分速度可能慢一个数量级';
 
 	/// zh-CN: 'MangaJaNai 路径设置'
 	String get mangaJaNaiPaths => 'MangaJaNai 路径设置';
@@ -4707,9 +4719,11 @@ extension on Translations {
 			'realSr.resolutionThresholdSubtitle' => '仅当图片宽度小于该值时才自动超分',
 			'realSr.performanceSection' => '性能',
 			'realSr.concurrency' => '并发数量',
-			'realSr.concurrencySubtitle' => '高端显卡可适当提高，移动设备或性能较低时不建议设置高于1的并发量',
+			'realSr.concurrencySubtitle' => '默认 1（单线程）；仅在确认显存充裕时才建议调高',
+			'realSr.concurrencyMangaJaNaiNote' => 'MangaJaNai 固定单线程批量处理，本项对其无效',
 			'realSr.tileSize' => '分块大小',
 			'realSr.tileSizeSubtitle' => '遇到崩溃可设置较小值，0为不分块，桌面端可尝试设置为0',
+			'realSr.tileSizeMangaJaNaiNote' => 'MangaJaNai 固定使用 512 分块，本项对其无效',
 			'realSr.modelSection' => '模型',
 			'realSr.model' => '模型',
 			'realSr.modelSubtitle' => '切换模型族会重置对应的变体选项',
@@ -4776,6 +4790,8 @@ extension on Translations {
 			'realSr.mangaJaNaiScaleSubtitle' => '黑白页按原图高度自动选模型，彩色页自动分流',
 			'realSr.mangaJaNaiThreshold' => '灰度判定阈值',
 			'realSr.mangaJaNaiThresholdSubtitle' => '黑白页被误判为彩色时调高该值（默认 12）',
+			'realSr.mangaJaNaiNvidiaTitle' => '建议调整 NVIDIA 显存回退策略',
+			'realSr.mangaJaNaiNvidiaSubtitle' => 'NVIDIA 控制面板 → 管理 3D 设置 →「CUDA - 系统内存回退策略」改为「偏好不使用系统内存回退」，否则超分速度可能慢一个数量级',
 			'realSr.mangaJaNaiPaths' => 'MangaJaNai 路径设置',
 			'realSr.mangaJaNaiPathsSubtitle' => '留空使用 GUI 默认安装路径',
 			'realSr.mangaJaNaiPathsCustom' => 'MangaJaNai 路径设置（已自定义）',
@@ -4915,12 +4931,12 @@ extension on Translations {
 			'comicList.loadFailedRetry' => '加载失败，请重试。',
 			'comicList.nothingHere' => '啥都没有',
 			'comicList.filter' => '筛选',
+			_ => null,
+		} ?? switch (path) {
 			'comicList.subCategory' => '子分类',
 			'comicList.levelCategory' => ({required Object level}) => '第${level}级分类',
 			'comicList.missingListConfig' => '缺少列表请求配置',
 			'comicList.missingFnPath' => '列表请求缺少 fnPath',
-			_ => null,
-		} ?? switch (path) {
 			'comicEntry.updatedAt' => ({required Object time}) => '更新: ${time}',
 			'comicEntry.finished' => '完结',
 			'comicEntry.ongoing' => '连载中',

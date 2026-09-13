@@ -1019,9 +1019,11 @@ class _Translations$realSr$en_US extends Translations$realSr$zh_CN {
 	@override String get resolutionThresholdSubtitle => 'Only auto-upscale when image width is below this value';
 	@override String get performanceSection => 'Performance';
 	@override String get concurrency => 'Concurrency';
-	@override String get concurrencySubtitle => 'Higher values suit high-end GPUs; mobile/low-end devices should keep it at 1';
+	@override String get concurrencySubtitle => 'Default is 1 (single-threaded); raise it only when GPU memory is plentiful';
+	@override String get concurrencyMangaJaNaiNote => 'MangaJaNai always runs as single-threaded batch processing; this setting does not apply';
 	@override String get tileSize => 'Tile Size';
 	@override String get tileSizeSubtitle => 'Set smaller if crashes occur; 0 means no tiling; desktop can try 0';
+	@override String get tileSizeMangaJaNaiNote => 'MangaJaNai always uses a fixed 512 tile; this setting does not apply';
 	@override String get modelSection => 'Model';
 	@override String get model => 'Model';
 	@override String get modelSubtitle => 'Switching model family resets variant options';
@@ -1088,6 +1090,8 @@ class _Translations$realSr$en_US extends Translations$realSr$zh_CN {
 	@override String get mangaJaNaiScaleSubtitle => 'Grayscale pages auto-pick models by height; color pages are routed automatically';
 	@override String get mangaJaNaiThreshold => 'Grayscale Threshold';
 	@override String get mangaJaNaiThresholdSubtitle => 'Raise this if grayscale pages are misdetected as color (default 12)';
+	@override String get mangaJaNaiNvidiaTitle => 'Recommended NVIDIA memory fallback setting';
+	@override String get mangaJaNaiNvidiaSubtitle => 'In NVIDIA Control Panel → Manage 3D settings, set CUDA - Sysmem Fallback Policy to Prefer No Sysmem Fallback; otherwise upscaling can be an order of magnitude slower';
 	@override String get mangaJaNaiPaths => 'MangaJaNai Paths';
 	@override String get mangaJaNaiPathsSubtitle => 'Leave empty to use the default GUI install paths';
 	@override String get mangaJaNaiPathsCustom => 'MangaJaNai Paths (customized)';
@@ -2368,9 +2372,11 @@ extension on TranslationsEnUs {
 			'realSr.resolutionThresholdSubtitle' => 'Only auto-upscale when image width is below this value',
 			'realSr.performanceSection' => 'Performance',
 			'realSr.concurrency' => 'Concurrency',
-			'realSr.concurrencySubtitle' => 'Higher values suit high-end GPUs; mobile/low-end devices should keep it at 1',
+			'realSr.concurrencySubtitle' => 'Default is 1 (single-threaded); raise it only when GPU memory is plentiful',
+			'realSr.concurrencyMangaJaNaiNote' => 'MangaJaNai always runs as single-threaded batch processing; this setting does not apply',
 			'realSr.tileSize' => 'Tile Size',
 			'realSr.tileSizeSubtitle' => 'Set smaller if crashes occur; 0 means no tiling; desktop can try 0',
+			'realSr.tileSizeMangaJaNaiNote' => 'MangaJaNai always uses a fixed 512 tile; this setting does not apply',
 			'realSr.modelSection' => 'Model',
 			'realSr.model' => 'Model',
 			'realSr.modelSubtitle' => 'Switching model family resets variant options',
@@ -2437,6 +2443,8 @@ extension on TranslationsEnUs {
 			'realSr.mangaJaNaiScaleSubtitle' => 'Grayscale pages auto-pick models by height; color pages are routed automatically',
 			'realSr.mangaJaNaiThreshold' => 'Grayscale Threshold',
 			'realSr.mangaJaNaiThresholdSubtitle' => 'Raise this if grayscale pages are misdetected as color (default 12)',
+			'realSr.mangaJaNaiNvidiaTitle' => 'Recommended NVIDIA memory fallback setting',
+			'realSr.mangaJaNaiNvidiaSubtitle' => 'In NVIDIA Control Panel → Manage 3D settings, set CUDA - Sysmem Fallback Policy to Prefer No Sysmem Fallback; otherwise upscaling can be an order of magnitude slower',
 			'realSr.mangaJaNaiPaths' => 'MangaJaNai Paths',
 			'realSr.mangaJaNaiPathsSubtitle' => 'Leave empty to use the default GUI install paths',
 			'realSr.mangaJaNaiPathsCustom' => 'MangaJaNai Paths (customized)',
@@ -2577,12 +2585,12 @@ extension on TranslationsEnUs {
 			'comicList.nothingHere' => 'Nothing here',
 			'comicList.filter' => 'Filter',
 			'comicList.subCategory' => 'Subcategory',
+			_ => null,
+		} ?? switch (path) {
 			'comicList.levelCategory' => ({required Object level}) => 'Level ${level}',
 			'comicList.missingListConfig' => 'Missing list request configuration',
 			'comicList.missingFnPath' => 'List request missing fnPath',
 			'comicEntry.updatedAt' => ({required Object time}) => 'Updated: ${time}',
-			_ => null,
-		} ?? switch (path) {
 			'comicEntry.finished' => 'Finished',
 			'comicEntry.ongoing' => 'Ongoing',
 			'comicEntry.likes' => ({required Object count}) => 'Likes ${count}',

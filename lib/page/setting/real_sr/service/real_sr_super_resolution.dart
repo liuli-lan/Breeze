@@ -12,6 +12,7 @@ import 'package:zephyr/main.dart';
 import 'package:zephyr/page/comic_info/method/export_comic.dart';
 import 'package:zephyr/page/setting/real_sr/service/android_ncnn_model_config.dart';
 import 'package:zephyr/page/setting/real_sr/service/desktop_ncnn_model_config.dart';
+import 'package:zephyr/page/setting/real_sr/service/mangajanai_batch.dart';
 import 'package:zephyr/page/setting/real_sr/service/mangajanai_engine.dart';
 import 'package:zephyr/page/setting/real_sr/service/real_sr_settings.dart';
 import 'package:zephyr/src/rust/api/image.dart';
@@ -41,12 +42,13 @@ class RealSrSuperResolution {
   static const String _binaryRepoBaseUrl =
       'https://github.com/deretame/breeze-binary/raw/main';
 
-  /// 最大并发超分任务数。
+  /// 最大并发超分任务数，默认 1（单线程）。
   ///
-  /// - 桌面端（Windows / Linux / macOS）默认 2，高端显卡可设更高。
-  /// - 移动设备（Android / iOS）默认 1，避免 OOM / 发热。
+  /// 仅约束 NCNN / CoreML 路径；MangaJaNai 引擎由 `MangaJaNaiBatchScheduler`
+  /// 串行调度，不经过本并发池。
   ///
-  /// 修改后会立即影响新任务，已在执行的任务不受影响。
+  /// 修改后会立即影响新任务：setter 会重建池对象，因此**已在执行以及已排队**的
+  /// 任务都留在旧池中按旧并发跑完。
   static int get maxConcurrency {
     if (_maxConcurrency != null) return _maxConcurrency!;
     return RealSrSettings.defaultConcurrency;
@@ -601,12 +603,6 @@ class RealSrSuperResolution {
       return;
     }
 
-    final concurrency = await RealSrSettings.loadConcurrency();
-    final targetConcurrency = concurrency == 0 ? 64 : concurrency;
-    if (maxConcurrency != targetConcurrency) {
-      maxConcurrency = targetConcurrency;
-    }
-
     final threshold = await RealSrSettings.loadResolutionThreshold();
     if (!await shouldUpscale(inputPath, threshold: threshold)) {
       logger.d('Input $inputPath does not need to be upscaled.');
@@ -657,16 +653,12 @@ class RealSrSuperResolution {
               DesktopSrEngine.mangaJaNai;
 
       if (useMangaJaNai) {
-        final mangaJaNaiScale = await RealSrSettings.loadMangaJaNaiScale();
-        final mangaJaNaiThreshold =
-            await RealSrSettings.loadMangaJaNaiGrayscaleThreshold();
-        final upscaled = await upscale(
-          inputPath: inputPath,
-          outputPath: inputPath,
-          mangaJaNaiScale: mangaJaNaiScale,
-          mangaJaNaiGrayscaleThreshold: mangaJaNaiThreshold,
-        );
-        if (!upscaled) return;
+        // MangaJaNai 走批量调度器：短时间窗内到达的图片攒成一批后，由单次 CLI
+        // 调用处理整批，模型只加载一次；调度器串行执行，即单线程，不会出现多个
+        // Python 进程争抢 GPU。超分与 WebP 转换均在调度器内完成，此处直接返回，
+        // 跳过下方的 WebP 转换。
+        await MangaJaNaiBatchScheduler.instance.enqueue(inputPath);
+        return;
       } else {
         final mode = await RealSrSettings.loadDesktopNcnnMode();
         final noise = await RealSrSettings.loadDesktopNcnnNoise();
@@ -713,8 +705,8 @@ class RealSrSuperResolution {
   ///
   /// 返回是否实际执行了超分；图片格式不支持、模型不可用等跳过场景返回 false。
   ///
-  /// [mangaJaNaiScale] 非空时（仅 Windows）走本地 MangaJaNai 引擎，
-  /// 此时 NCNN 相关参数被忽略；[mangaJaNaiGrayscaleThreshold] 为灰度判定阈值。
+  /// 仅负责 NCNN / CoreML 路径；Windows 下的 MangaJaNai 引擎改由
+  /// `MangaJaNaiBatchScheduler` 批量调度，不经过本方法。
   static Future<bool> upscale({
     required String inputPath,
     String? outputPath,
@@ -724,8 +716,6 @@ class RealSrSuperResolution {
     RealSrNoiseLevel noiseLevel = RealSrNoiseLevel.conservative,
     int tileSize = 0,
     int syncGapMode = 3,
-    int? mangaJaNaiScale,
-    int mangaJaNaiGrayscaleThreshold = 12,
   }) async {
     if (!await isAvailable) {
       logger.d('RealSR 不可用，跳过超分: $inputPath');
@@ -752,6 +742,16 @@ class RealSrSuperResolution {
     if (normalizedExt == '.webp' && await isAnimatedWebP(inputFile)) {
       logger.w('RealSR 不支持动图 WebP，跳过超分: $inputPath');
       return false;
+    }
+
+    // 并发设置只对 NCNN / CoreML 路径生效：MangaJaNai 由批量调度器串行控制，
+    // 不经过本方法的并发池。放在这里而不是调用方，是为了让「谁用谁读」显式化，
+    // 避免 MangaJaNai 路径白读一次配置并重建无用的池；同时避开被上面的格式检查
+    // 提前跳过的图片（GIF / 动图 WebP 等）。
+    final concurrency = await RealSrSettings.loadConcurrency();
+    final targetConcurrency = concurrency == 0 ? 64 : concurrency;
+    if (maxConcurrency != targetConcurrency) {
+      maxConcurrency = targetConcurrency;
     }
 
     return _pool.withResource(() async {
@@ -792,13 +792,6 @@ class RealSrSuperResolution {
           );
         } else if (Platform.isIOS || Platform.isMacOS) {
           await _upscaleCoreML(inputPath: pngInputPath, outputPath: out);
-        } else if (Platform.isWindows && mangaJaNaiScale != null) {
-          await _upscaleMangaJaNai(
-            inputPath: pngInputPath,
-            outputPath: out,
-            scale: mangaJaNaiScale,
-            grayscaleThreshold: mangaJaNaiGrayscaleThreshold,
-          );
         } else {
           await _upscaleCli(
             inputPath: pngInputPath,
@@ -895,21 +888,6 @@ class RealSrSuperResolution {
       modelPath: modelPath,
       modelType: 'multiarray',
       config: variant.config,
-    );
-  }
-
-  /// Windows 通过本地 MangaJaNaiConverterGui CLI 后端超分。
-  static Future<void> _upscaleMangaJaNai({
-    required String inputPath,
-    required String outputPath,
-    required int scale,
-    required int grayscaleThreshold,
-  }) async {
-    await MangaJaNaiEngine.upscale(
-      inputPath: inputPath,
-      outputPath: outputPath,
-      scale: scale,
-      grayscaleThreshold: grayscaleThreshold,
     );
   }
 

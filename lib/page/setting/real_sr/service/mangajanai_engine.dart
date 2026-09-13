@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -10,8 +11,16 @@ import 'package:zephyr/util/get_path.dart';
 /// 本地 MangaJaNai 超分引擎（仅 Windows）。
 ///
 /// 复用本机已安装的 [MangaJaNaiConverterGui](https://github.com/the-database/MangaJaNaiConverterGui)
-/// 内置的 chaiNNer Python 后端：为单张图片生成 settings JSON，
-/// 然后调用 `run_upscale.py --settings <json>` 完成超分。
+/// 内置的 chaiNNer Python 后端：生成 settings JSON 后调用
+/// `run_upscale.py --settings <json>` 完成超分。
+///
+/// 两种执行模式：
+/// - [upscale]：单文件模式，一次调用处理一张图。
+/// - [upscaleFolder]：文件夹批量模式，一次调用处理整个目录，模型只加载一次。
+///
+/// 实际调用路径由 `MangaJaNaiBatchScheduler` 决定：它把短时间窗内到达的图片
+/// 攒成一批后统一提交，批内只有一张时退回单文件模式。该调度器串行执行，
+/// 保证同一时刻只有一个 MangaJaNai 进程在跑（单线程）。
 ///
 /// 前提：用户至少在 GUI 里运行过一次任务（Python 运行时与全套模型才会就绪）。
 ///
@@ -49,18 +58,51 @@ class MangaJaNaiEngine {
     return p.joinAll([base, _appName, ...segments]);
   }
 
-  /// 解析实际生效的路径（用户覆写优先，留空回退默认值）。
+  /// Breeze 自带的 MangaJaNai 引擎包根目录（`<files>/mangajanai/`）。
+  ///
+  /// 由 `script/pack_mangajanai_windows.py` 产出的 `mangajanai-win.7z` 解压而来，
+  /// 目录结构与 GUI 安装同构（`python/python`、`backend/src`、`models`），
+  /// 用于未安装 MangaJaNaiConverterGui 的机器：下载解压后即可用，无需先装 GUI。
+  static Future<String?> _bundledRoot() async {
+    final dir = Directory(p.join(await getFilePath(), 'mangajanai'));
+    return dir.existsSync() ? dir.path : null;
+  }
+
+  /// 解析实际生效的路径。
+  ///
+  /// 优先级：用户覆写 > 本机 GUI 安装（存在时）> Breeze 自带引擎包。
+  /// 两者都缺失时返回 GUI 默认路径字符串，让 `missingRequirements`
+  /// 如实报告缺失项。
   static Future<({String pythonPath, String backendSrcDir, String modelsDir})>
   _resolvePaths() async {
     final python = await RealSrSettings.loadMangaJaNaiPythonPath();
     final backend = await RealSrSettings.loadMangaJaNaiBackendSrcDir();
     final models = await RealSrSettings.loadMangaJaNaiModelsDir();
+    final bundled = await _bundledRoot();
+
+    String pick(String custom, String? guiDefault, String bundledRelative) {
+      if (custom.isNotEmpty) return custom;
+      final gui = guiDefault ?? '';
+      final guiExists =
+          gui.isNotEmpty &&
+          (File(gui).existsSync() || Directory(gui).existsSync());
+      if (guiExists) return gui;
+      if (bundled != null) return p.join(bundled, bundledRelative);
+      return gui;
+    }
+
     return (
-      pythonPath: python.isNotEmpty ? python : (defaultPythonPath ?? ''),
-      backendSrcDir: backend.isNotEmpty
-          ? backend
-          : (defaultBackendSrcDir ?? ''),
-      modelsDir: models.isNotEmpty ? models : (defaultModelsDir ?? ''),
+      pythonPath: pick(
+        python,
+        defaultPythonPath,
+        p.join('python', 'python', 'python.exe'),
+      ),
+      backendSrcDir: pick(
+        backend,
+        defaultBackendSrcDir,
+        p.join('backend', 'src'),
+      ),
+      modelsDir: pick(models, defaultModelsDir, 'models'),
     );
   }
 
@@ -80,8 +122,9 @@ class MangaJaNaiEngine {
   ///
   /// 返回缺失组件描述列表；空列表表示就绪。
   static Future<List<String>> missingRequirements() async {
-    if (!Platform.isWindows)
+    if (!Platform.isWindows) {
       return const ['MangaJaNai engine requires Windows'];
+    }
 
     final paths = await _resolvePaths();
     final missing = <String>[];
@@ -112,7 +155,7 @@ class MangaJaNaiEngine {
   static Future<bool> get isAvailable async =>
       (await missingRequirements()).isEmpty;
 
-  /// 对单张图片执行超分，结果（PNG）写入 [outputPath]。
+  /// 对单张图片执行超分，结果（WebP）写入 [outputPath]。
   ///
   /// [inputPath] 需为 PNG（上层超分主流程已统一转换）。
   /// [scale] 为目标放大倍率（2 或 4）；[grayscaleThreshold] 为灰度判定阈值。
@@ -145,7 +188,7 @@ class MangaJaNaiEngine {
       await settingsFile.writeAsString(
         const JsonEncoder.withIndent('  ').convert(
           _buildSettings(
-            inputPath: inputPath,
+            inputFilePath: inputPath,
             outputDir: outDir,
             scale: scale,
             grayscaleThreshold: grayscaleThreshold,
@@ -191,9 +234,138 @@ class MangaJaNaiEngine {
     }
   }
 
+  /// 对一整个目录执行超分（后端文件夹模式），结果（WebP）写入 [outputDir]。
+  ///
+  /// 与 [upscale] 的区别在于**一次 Python 调用处理整批图片**：后端用
+  /// `loaded_models` 缓存已加载的模型，因此模型只加载一次，省掉了逐张重启
+  /// 解释器（torch / CUDA 初始化）与重复载入模型的固定开销。
+  ///
+  /// 后端批内本身是串行的（单个 upscale 线程 + `Queue(maxsize=1)`），
+  /// 不会出现多张图同时抢 GPU。批量调度见 `MangaJaNaiBatchScheduler`。
+  ///
+  /// [inputDir] 应为仅含 PNG 的平铺目录；输出文件名为 `<输入名>.webp`。
+  ///
+  /// [timeout] 为整批超时。文件夹模式对损坏图片没有容错：后端预处理线程抛异常
+  /// 时不会投递结束哨兵，超分线程会永久阻塞在队列上、进程不退出。这里超时后
+  /// 强制杀进程并抛出异常，避免整个批量链路卡死。
+  static Future<void> upscaleFolder({
+    required String inputDir,
+    required String outputDir,
+    required int scale,
+    required int grayscaleThreshold,
+    Duration timeout = const Duration(minutes: 30),
+  }) async {
+    if (!Platform.isWindows) {
+      throw StateError('MangaJaNai engine requires Windows');
+    }
+
+    final paths = await _resolvePaths();
+    if (paths.pythonPath.isEmpty ||
+        paths.backendSrcDir.isEmpty ||
+        paths.modelsDir.isEmpty) {
+      throw StateError('MangaJaNai 路径未配置且默认安装位置不存在');
+    }
+    final script = p.join(paths.backendSrcDir, _cliScriptName);
+    if (!File(script).existsSync()) {
+      throw StateError('MangaJaNai CLI 后端不存在: $script');
+    }
+
+    final cachePath = await getCachePath();
+    final workDir = Directory(
+      p.normalize(p.join(cachePath, 'mangajanai-upscale', const Uuid().v4())),
+    );
+    final settingsFile = File(p.join(workDir.path, 'settings.json'));
+
+    try {
+      await workDir.create(recursive: true);
+      await settingsFile.writeAsString(
+        const JsonEncoder.withIndent('  ').convert(
+          _buildSettings(
+            outputDir: outputDir,
+            inputFolderPath: inputDir,
+            scale: scale,
+            grayscaleThreshold: grayscaleThreshold,
+            modelsDir: paths.modelsDir,
+          ),
+        ),
+      );
+
+      logger.d(
+        'MangaJaNai batch upscale: $inputDir -> $outputDir (scale=$scale)',
+      );
+
+      final process = await Process.start(
+        paths.pythonPath,
+        [_cliScriptName, '--settings', settingsFile.path],
+        workingDirectory: paths.backendSrcDir,
+        runInShell: false,
+      );
+
+      // run_upscale.py 会把 stdout 重新配置为 UTF-8，这里显式按 UTF-8 解码；
+      // 允许非法字节，避免解码失败中断整批任务。
+      const decoder = Utf8Decoder(allowMalformed: true);
+      final stdoutBuffer = StringBuffer();
+      final stderrBuffer = StringBuffer();
+      final stdoutDone = process.stdout
+          .transform(decoder)
+          .listen(stdoutBuffer.write)
+          .asFuture<void>();
+      final stderrDone = process.stderr
+          .transform(decoder)
+          .listen(stderrBuffer.write)
+          .asFuture<void>();
+
+      int exitCode;
+      try {
+        exitCode = await process.exitCode.timeout(timeout);
+      } on TimeoutException {
+        logger.w('MangaJaNai 批量超分超时（${timeout.inMinutes} 分钟），强制终止进程');
+        try {
+          process.kill(ProcessSignal.sigkill);
+        } catch (e) {
+          logger.w('MangaJaNai 进程终止失败', error: e);
+        }
+        try {
+          await process.exitCode.timeout(const Duration(seconds: 10));
+        } catch (_) {}
+        throw StateError('MangaJaNai 批量超分超时（${timeout.inMinutes} 分钟）');
+      }
+
+      await Future.wait([stdoutDone, stderrDone]);
+
+      if (exitCode != 0) {
+        throw StateError(
+          'MangaJaNai CLI 失败 (exitCode=$exitCode)\n'
+          'stdout: ${_tail(stdoutBuffer.toString())}\n'
+          'stderr: ${_tail(stderrBuffer.toString())}',
+        );
+      }
+    } finally {
+      try {
+        if (workDir.existsSync()) {
+          workDir.deleteSync(recursive: true);
+        }
+      } catch (e) {
+        logger.w('MangaJaNai 工作目录清理失败: ${workDir.path}', error: e);
+      }
+    }
+  }
+
   // =========================================================
   // settings JSON 构建
   // =========================================================
+
+  /// 交给后端的模型分块大小。
+  ///
+  /// 后端 `ModelTileSize` 接受 `"Auto (Estimate)"` / `"Maximum"` /
+  /// `"No Tiling"` / 十进制字符串。这里**刻意不用 ESTIMATE**：后端的估算只读设备
+  /// **总**显存（`torch.cuda.mem_get_info` 返回的 free 值在 `upscale_image.py`
+  /// 里被丢弃），按 `total * 0.75 * 0.8` 推算预算；与其它应用共享 GPU 时会高估
+  /// 可用显存，取到过大的分块 → OOM，或触发 CUDA 系统内存回退（后者慢一个数量级）。
+  ///
+  /// Breeze 常在后台与用户的游戏/应用共享 GPU，故取固定值。512 为实测基线：
+  /// 2x、1300p 档下单张 0.57s、显存峰值 4.5GB。
+  static const _mangaJaNaiTileSize = '512';
 
   static const _colorModel2x =
       '2x_IllustrationJaNai_V3denoise_FDAT_M_unshuffle_30k_fp16.safetensors';
@@ -256,13 +428,19 @@ class MangaJaNaiEngine {
     ),
   ];
 
+  /// 构建后端 settings JSON。
+  ///
+  /// [inputFilePath] 与 [inputFolderPath] 二选一：前者为单文件模式
+  /// （`SelectedTabIndex = 0`），后者为文件夹批量模式（`SelectedTabIndex = 1`）。
   static Map<String, Object> _buildSettings({
-    required String inputPath,
     required String outputDir,
     required int scale,
     required int grayscaleThreshold,
     required String modelsDir,
+    String inputFilePath = '',
+    String inputFolderPath = '',
   }) {
+    final isBatch = inputFolderPath.isNotEmpty;
     return {
       // 后端语义：0 = CPU；非 0 = 非 CPU 设备列表中的位置（单卡机即 GPU）。
       'SelectedDeviceIndex': 1,
@@ -272,22 +450,27 @@ class MangaJaNaiEngine {
       'Workflows': {
         r'$values': [
           {
-            'WorkflowName': 'Breeze Upscale',
+            'WorkflowName': isBatch ? 'Breeze Upscale Batch' : 'Breeze Upscale',
             'WorkflowIndex': 0,
-            'SelectedTabIndex': 0,
-            'InputFilePath': inputPath,
-            'InputFolderPath': '',
+            // 0 = 单文件标签页，1 = 文件夹标签页（后端据此选择处理函数）。
+            'SelectedTabIndex': isBatch ? 1 : 0,
+            'InputFilePath': inputFilePath,
+            'InputFolderPath': inputFolderPath,
             'OutputFilename': '%filename%',
             'OutputFolderPath': outputDir,
+            // 批量模式必须保持 true：单文件模式下输出已存在时会直接 return
+            // 而不投递结束哨兵，导致后端超分线程永久阻塞。
             'OverwriteExistingFiles': true,
             'UpscaleImages': true,
             'UpscaleArchives': false,
             'ResizeHeightAfterUpscale': 0,
             'ResizeWidthAfterUpscale': 0,
-            // 统一输出 PNG，后续由应用自身转 WebP，保持与其他引擎一致。
-            'WebpSelected': false,
+            // 直接输出 WebP（q90）：省掉「后端编码 PNG → Dart 侧解码再编码
+            // WebP」的一次完整往返。PNG 是无损容器，编码慢且体积是 WebP 的
+            // 数倍，这条路在批量场景下开销可观。
+            'WebpSelected': true,
             'AvifSelected': false,
-            'PngSelected': true,
+            'PngSelected': false,
             'JpegSelected': false,
             'UseLosslessCompression': false,
             'LossyCompressionQuality': 90,
@@ -383,7 +566,7 @@ class MangaJaNaiEngine {
       'MinScaleFactor': minScaleFactor,
       'MaxScaleFactor': maxScaleFactor,
       'ModelFilePath': modelFilePath,
-      'ModelTileSize': 'Auto (Estimate)',
+      'ModelTileSize': _mangaJaNaiTileSize,
       'AutoAdjustLevels': isGrayscale,
       'ResizeHeightBeforeUpscale': 0,
       'ResizeWidthBeforeUpscale': 0,
