@@ -14,6 +14,7 @@ import 'package:zephyr/page/setting/real_sr/service/real_sr_super_resolution.dar
 
 import 'package:zephyr/src/rust/api/simple.dart';
 import 'package:zephyr/src/rust/decode/decode.dart';
+import 'package:zephyr/util/event/image_upscaled_event.dart';
 import 'package:zephyr/util/get_path.dart';
 
 export 'package:zephyr/service/download/download_asset_store.dart'
@@ -39,6 +40,7 @@ Future<String> getCachePicture({
   Map<String, dynamic>? extern,
   int index = 0,
   bool applyRealSr = true,
+  bool waitForRealSr = true,
   bool usePlugin = true,
 }) async {
   final resolvedFrom = normalizePluginId(from);
@@ -74,7 +76,7 @@ Future<String> getCachePicture({
     try {
       // 超分 + WebP 转换统一封装，内部会判断分辨率并保留原文件名。
       if (pictureType == PictureType.page && applyRealSr) {
-        await RealSrSuperResolution.upscaleAndConvertToWebp(existing.path);
+        await _processRealSr(existing.path, waitForRealSr: waitForRealSr);
       }
       return existing.path;
     } catch (e) {
@@ -136,7 +138,7 @@ Future<String> getCachePicture({
     // 验证文件已成功保存
     if (await File(newCacheFilePath).exists()) {
       if (pictureType == PictureType.page && applyRealSr) {
-        await RealSrSuperResolution.upscaleAndConvertToWebp(newCacheFilePath);
+        await _processRealSr(newCacheFilePath, waitForRealSr: waitForRealSr);
       }
       return newCacheFilePath;
     } else {
@@ -152,12 +154,32 @@ Future<String> getCachePicture({
       await File(newCacheFilePath).length() > 0) {
     // 超分 + WebP 转换统一封装，内部会判断分辨率并保留原文件名
     if (pictureType == PictureType.page && applyRealSr) {
-      await RealSrSuperResolution.upscaleAndConvertToWebp(newCacheFilePath);
+      await _processRealSr(newCacheFilePath, waitForRealSr: waitForRealSr);
     }
     return newCacheFilePath;
   } else {
     throw Exception('图片保存失败');
   }
+}
+
+/// 触发单张图片的超分 + WebP 转换。
+///
+/// [waitForRealSr] 为 true（下载任务等后台场景）时等待完成，失败向上抛，
+/// 由调用方决定重试；为 false（阅读器显示/预取路径）时立即返回——先显示
+/// 原图，超分在后台执行，完成后广播 [ImageUpscaledEvent] 由显示层热替换。
+/// 超分内部自带幂等与同路径去重，重复触发无害。
+Future<void> _processRealSr(String path, {required bool waitForRealSr}) {
+  if (waitForRealSr) {
+    return RealSrSuperResolution.upscaleAndConvertToWebp(path);
+  }
+  unawaited(
+    RealSrSuperResolution.upscaleAndConvertToWebp(path).catchError((e, s) {
+      // 后台超分失败只记日志：文件本身是完好的原图，不删除不重试，
+      // 避免误删显示中的图片。
+      logger.w('后台超分失败: $path', error: e, stackTrace: s);
+    }),
+  );
+  return Future.value();
 }
 
 /// 在不触发下载的前提下，解析图片已存在的本地路径。

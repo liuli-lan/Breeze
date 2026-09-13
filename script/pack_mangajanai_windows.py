@@ -96,6 +96,12 @@ def parse_args() -> argparse.Namespace:
         help="pack only backend/ for a quick dry run",
     )
     parser.add_argument(
+        "--backend-only",
+        action="store_true",
+        help="pack only backend/ as mangajanai-backend.7z, for Breeze's "
+        "online bootstrap (upload this small archive to the release channel)",
+    )
+    parser.add_argument(
         "--7zr",
         dest="seven_zip",
         default=None,
@@ -157,8 +163,10 @@ def write_licenses(work: Path) -> Path:
 
 def main() -> int:
     args = parse_args()
+    if args.backend_only and args.out == "mangajanai-win.7z":
+        args.out = "mangajanai-backend.7z"
     seven_zip = find_seven_zip(args.seven_zip)
-    sources = collect_sources(args.smoke)
+    sources = collect_sources(args.smoke or args.backend_only)
 
     work = Path(tempfile.mkdtemp(prefix="mangajanai_pack_"))
     licenses_file = write_licenses(work)

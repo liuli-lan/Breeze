@@ -43,6 +43,9 @@ class PictureBloc extends Bloc<GetPicture, PictureLoadState> {
         pictureType: event.pictureInfo.pictureType,
         extern: event.pictureInfo.extern,
         usePlugin: event.usePlugin,
+        // 显示路径不等超分：落盘即显示原图，超分后台完成后由
+        // ImageDisplay 通过 ImageUpscaledEvent 热替换为高清版。
+        waitForRealSr: false,
       );
       if (picturePath == '404') {
         throw Exception('404');

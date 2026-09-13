@@ -1100,7 +1100,18 @@ class _Translations$realSr$en_US extends Translations$realSr$zh_CN {
 	@override String get mangaJaNaiPathModels => 'Models directory';
 	@override String get mangaJaNaiReady => 'MangaJaNai ready';
 	@override String get mangaJaNaiNotReady => 'MangaJaNai not ready';
-	@override String get mangaJaNaiMissingHint => 'Missing components (run a job in the GUI at least once):';
+	@override String get mangaJaNaiMissingHint => 'Missing components (install online below, or run a job in the GUI at least once):';
+	@override String get mangaJaNaiOnlineInstall => 'Install engine online';
+	@override String get mangaJaNaiOnlineInstallSubtitle => 'Fetch everything from official sources without installing the GUI (~4 GB)';
+	@override String get mangaJaNaiOnlineInstallAction => 'Install';
+	@override String get mangaJaNaiOnlineInstallConfirm => 'About 4 GB will be downloaded from official sources (Python runtime, PyTorch, backend and models). The whole process may take 10-40 minutes; keep the network connected. Continue?';
+	@override String get mangaJaNaiInstallStagePython => 'Downloading Python runtime…';
+	@override String get mangaJaNaiInstallStageDeps => 'Installing Python dependencies…';
+	@override String get mangaJaNaiInstallStageTorch => 'Downloading PyTorch (~2.5 GB, the longest step)…';
+	@override String get mangaJaNaiInstallStageBackend => 'Fetching backend sources…';
+	@override String get mangaJaNaiInstallStageModels => 'Downloading model packages…';
+	@override String get mangaJaNaiInstallDone => 'MangaJaNai engine installed';
+	@override String get mangaJaNaiInstallFailed => 'MangaJaNai engine installation failed';
 	@override String mangaJaNaiPathHint({required Object path}) => 'Default: ${path}';
 }
 
@@ -2453,7 +2464,18 @@ extension on TranslationsEnUs {
 			'realSr.mangaJaNaiPathModels' => 'Models directory',
 			'realSr.mangaJaNaiReady' => 'MangaJaNai ready',
 			'realSr.mangaJaNaiNotReady' => 'MangaJaNai not ready',
-			'realSr.mangaJaNaiMissingHint' => 'Missing components (run a job in the GUI at least once):',
+			'realSr.mangaJaNaiMissingHint' => 'Missing components (install online below, or run a job in the GUI at least once):',
+			'realSr.mangaJaNaiOnlineInstall' => 'Install engine online',
+			'realSr.mangaJaNaiOnlineInstallSubtitle' => 'Fetch everything from official sources without installing the GUI (~4 GB)',
+			'realSr.mangaJaNaiOnlineInstallAction' => 'Install',
+			'realSr.mangaJaNaiOnlineInstallConfirm' => 'About 4 GB will be downloaded from official sources (Python runtime, PyTorch, backend and models). The whole process may take 10-40 minutes; keep the network connected. Continue?',
+			'realSr.mangaJaNaiInstallStagePython' => 'Downloading Python runtime…',
+			'realSr.mangaJaNaiInstallStageDeps' => 'Installing Python dependencies…',
+			'realSr.mangaJaNaiInstallStageTorch' => 'Downloading PyTorch (~2.5 GB, the longest step)…',
+			'realSr.mangaJaNaiInstallStageBackend' => 'Fetching backend sources…',
+			'realSr.mangaJaNaiInstallStageModels' => 'Downloading model packages…',
+			'realSr.mangaJaNaiInstallDone' => 'MangaJaNai engine installed',
+			'realSr.mangaJaNaiInstallFailed' => 'MangaJaNai engine installation failed',
 			'realSr.mangaJaNaiPathHint' => ({required Object path}) => 'Default: ${path}',
 			'about.title' => 'About app',
 			'about.version' => ({required Object version}) => 'Version: ${version}',
@@ -2574,6 +2596,8 @@ extension on TranslationsEnUs {
 			'discover.pluginDebugLoadFailed' => ({required Object error}) => 'Plugin debug load failed, reverted to database: ${error}',
 			'searchResult.enterPageNumber' => 'Enter page number',
 			'searchResult.pleaseEnterNumber' => 'Please enter a number',
+			_ => null,
+		} ?? switch (path) {
 			'searchResult.returnToTop' => 'Return to top',
 			'searchResult.jumpToPage' => 'Jump to page',
 			'searchResult.jump' => 'Jump',
@@ -2585,8 +2609,6 @@ extension on TranslationsEnUs {
 			'comicList.nothingHere' => 'Nothing here',
 			'comicList.filter' => 'Filter',
 			'comicList.subCategory' => 'Subcategory',
-			_ => null,
-		} ?? switch (path) {
 			'comicList.levelCategory' => ({required Object level}) => 'Level ${level}',
 			'comicList.missingListConfig' => 'Missing list request configuration',
 			'comicList.missingFnPath' => 'List request missing fnPath',

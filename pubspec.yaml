@@ -11,6 +11,10 @@ dependencies:
   flutter:
     sdk: flutter
 
+  # 纯 Dart 的 zip 解压：MangaJaNai 在线引导用它解 Python embeddable
+  # （模型 zip 由装好的 Python 自解，见 mangajanai_bootstrap.dart）
+  archive: ^4.2.0
+
   # 国际化
   slang: ^4.6.0 # 国际化: 类型安全翻译
   slang_flutter: ^4.6.0 # 国际化: Flutter 集成

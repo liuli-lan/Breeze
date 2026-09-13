@@ -20,6 +20,7 @@ import 'package:zephyr/src/rust/api/simple.dart';
 import 'package:zephyr/type/enum.dart';
 import 'package:zephyr/util/coreml_model_config.dart';
 import 'package:zephyr/util/coreml_model_loader.dart';
+import 'package:zephyr/util/event/image_upscaled_event.dart';
 import 'package:zephyr/util/get_path.dart';
 import 'package:zephyr/widgets/toast.dart';
 
@@ -632,6 +633,7 @@ class RealSrSuperResolution {
         // 超分成功后输出的是 PNG，再转换为 WebP 以节省空间
         await convertImageToWebp(inputPath: tempOutput, imageType: 'png');
         await File(tempOutput).rename(inputPath);
+        _notifyUpscaled(inputPath);
       } catch (e, s) {
         logger.w('Android 超分/WebP 转换失败: $inputPath', error: e, stackTrace: s);
         rethrow;
@@ -658,6 +660,7 @@ class RealSrSuperResolution {
         // Python 进程争抢 GPU。超分与 WebP 转换均在调度器内完成，此处直接返回，
         // 跳过下方的 WebP 转换。
         await MangaJaNaiBatchScheduler.instance.enqueue(inputPath);
+        _notifyUpscaled(inputPath);
         return;
       } else {
         final mode = await RealSrSettings.loadDesktopNcnnMode();
@@ -699,6 +702,16 @@ class RealSrSuperResolution {
     } catch (e, s) {
       logger.w('WebP 转换失败，保留超分后的原图: $inputPath', error: e, stackTrace: s);
     }
+
+    _notifyUpscaled(inputPath);
+  }
+
+  /// 广播"图片超分完成"：路径不变、内容已覆盖为高清版。
+  ///
+  /// 显示层（ImageDisplay）收到后清除 ImageProvider 缓存并重新解码，
+  /// 实现"先显示原图、超分完成后无感热替换"。
+  static void _notifyUpscaled(String path) {
+    eventBus.fire(ImageUpscaledEvent(path));
   }
 
   /// 对单张图片做超分放大。

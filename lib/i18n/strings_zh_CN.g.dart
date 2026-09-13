@@ -2891,8 +2891,41 @@ class Translations$realSr$zh_CN {
 	/// zh-CN: 'MangaJaNai 未就绪'
 	String get mangaJaNaiNotReady => 'MangaJaNai 未就绪';
 
-	/// zh-CN: '未检测到以下组件（需先在 GUI 中运行过一次任务）：'
-	String get mangaJaNaiMissingHint => '未检测到以下组件（需先在 GUI 中运行过一次任务）：';
+	/// zh-CN: '未检测到以下组件（可在下方在线安装，或安装 GUI 并运行一次任务）：'
+	String get mangaJaNaiMissingHint => '未检测到以下组件（可在下方在线安装，或安装 GUI 并运行一次任务）：';
+
+	/// zh-CN: '在线安装引擎'
+	String get mangaJaNaiOnlineInstall => '在线安装引擎';
+
+	/// zh-CN: '无需安装 GUI，从官方源自动获取全部内容（约 4 GB）'
+	String get mangaJaNaiOnlineInstallSubtitle => '无需安装 GUI，从官方源自动获取全部内容（约 4 GB）';
+
+	/// zh-CN: '安装'
+	String get mangaJaNaiOnlineInstallAction => '安装';
+
+	/// zh-CN: '将从官方源下载约 4 GB 内容（Python 运行时、PyTorch、后端与模型），全程可能需要 10-40 分钟，期间请保持网络连接。确定继续吗？'
+	String get mangaJaNaiOnlineInstallConfirm => '将从官方源下载约 4 GB 内容（Python 运行时、PyTorch、后端与模型），全程可能需要 10-40 分钟，期间请保持网络连接。确定继续吗？';
+
+	/// zh-CN: '正在下载 Python 运行时…'
+	String get mangaJaNaiInstallStagePython => '正在下载 Python 运行时…';
+
+	/// zh-CN: '正在安装 Python 依赖…'
+	String get mangaJaNaiInstallStageDeps => '正在安装 Python 依赖…';
+
+	/// zh-CN: '正在下载 PyTorch（约 2.5 GB，耗时最长）…'
+	String get mangaJaNaiInstallStageTorch => '正在下载 PyTorch（约 2.5 GB，耗时最长）…';
+
+	/// zh-CN: '正在获取后端源码…'
+	String get mangaJaNaiInstallStageBackend => '正在获取后端源码…';
+
+	/// zh-CN: '正在下载模型包…'
+	String get mangaJaNaiInstallStageModels => '正在下载模型包…';
+
+	/// zh-CN: 'MangaJaNai 引擎安装完成'
+	String get mangaJaNaiInstallDone => 'MangaJaNai 引擎安装完成';
+
+	/// zh-CN: 'MangaJaNai 引擎安装失败'
+	String get mangaJaNaiInstallFailed => 'MangaJaNai 引擎安装失败';
 
 	/// zh-CN: '默认：$path'
 	String mangaJaNaiPathHint({required Object path}) => '默认：${path}';
@@ -4800,7 +4833,18 @@ extension on Translations {
 			'realSr.mangaJaNaiPathModels' => '模型目录',
 			'realSr.mangaJaNaiReady' => 'MangaJaNai 已就绪',
 			'realSr.mangaJaNaiNotReady' => 'MangaJaNai 未就绪',
-			'realSr.mangaJaNaiMissingHint' => '未检测到以下组件（需先在 GUI 中运行过一次任务）：',
+			'realSr.mangaJaNaiMissingHint' => '未检测到以下组件（可在下方在线安装，或安装 GUI 并运行一次任务）：',
+			'realSr.mangaJaNaiOnlineInstall' => '在线安装引擎',
+			'realSr.mangaJaNaiOnlineInstallSubtitle' => '无需安装 GUI，从官方源自动获取全部内容（约 4 GB）',
+			'realSr.mangaJaNaiOnlineInstallAction' => '安装',
+			'realSr.mangaJaNaiOnlineInstallConfirm' => '将从官方源下载约 4 GB 内容（Python 运行时、PyTorch、后端与模型），全程可能需要 10-40 分钟，期间请保持网络连接。确定继续吗？',
+			'realSr.mangaJaNaiInstallStagePython' => '正在下载 Python 运行时…',
+			'realSr.mangaJaNaiInstallStageDeps' => '正在安装 Python 依赖…',
+			'realSr.mangaJaNaiInstallStageTorch' => '正在下载 PyTorch（约 2.5 GB，耗时最长）…',
+			'realSr.mangaJaNaiInstallStageBackend' => '正在获取后端源码…',
+			'realSr.mangaJaNaiInstallStageModels' => '正在下载模型包…',
+			'realSr.mangaJaNaiInstallDone' => 'MangaJaNai 引擎安装完成',
+			'realSr.mangaJaNaiInstallFailed' => 'MangaJaNai 引擎安装失败',
 			'realSr.mangaJaNaiPathHint' => ({required Object path}) => '默认：${path}',
 			'about.title' => '关于应用',
 			'about.version' => ({required Object version}) => '版本号: ${version}',
@@ -4920,6 +4964,8 @@ extension on Translations {
 			'discover.pluginCloseFailed' => ({required Object error}) => '插件关闭失败: ${error}',
 			'discover.pluginDebugLoadFailed' => ({required Object error}) => '插件调试加载失败，已回退数据库: ${error}',
 			'searchResult.enterPageNumber' => '输入页数',
+			_ => null,
+		} ?? switch (path) {
 			'searchResult.pleaseEnterNumber' => '请输入数字',
 			'searchResult.returnToTop' => '返回顶部',
 			'searchResult.jumpToPage' => '跳转页面',
@@ -4931,8 +4977,6 @@ extension on Translations {
 			'comicList.loadFailedRetry' => '加载失败，请重试。',
 			'comicList.nothingHere' => '啥都没有',
 			'comicList.filter' => '筛选',
-			_ => null,
-		} ?? switch (path) {
 			'comicList.subCategory' => '子分类',
 			'comicList.levelCategory' => ({required Object level}) => '第${level}级分类',
 			'comicList.missingListConfig' => '缺少列表请求配置',

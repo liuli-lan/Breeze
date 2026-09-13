@@ -9,6 +9,7 @@ import 'package:zephyr/main.dart';
 import 'package:zephyr/page/setting/common/setting_ui.dart';
 import 'package:zephyr/page/setting/real_sr/service/android_ncnn_model_config.dart';
 import 'package:zephyr/page/setting/real_sr/service/desktop_ncnn_model_config.dart';
+import 'package:zephyr/page/setting/real_sr/service/mangajanai_bootstrap.dart';
 import 'package:zephyr/page/setting/real_sr/service/mangajanai_engine.dart';
 import 'package:zephyr/page/setting/real_sr/service/real_sr_settings.dart';
 import 'package:zephyr/page/setting/real_sr/service/real_sr_super_resolution.dart';
@@ -73,6 +74,8 @@ class _RealSrSettingPageState extends State<RealSrSettingPage> {
   String _mangaJaNaiBackendSrcDir = '';
   String _mangaJaNaiModelsDir = '';
   List<String> _mangaJaNaiMissing = const [];
+  bool _installingEngine = false;
+  String? _installStatusText;
   CoreMLModelFamily _coreMLFamily = CoreMLModelConfig.defaultFamily;
   CoreMLModelVariant _coreMLVariant = CoreMLModelConfig.defaultVariant;
   bool _isAvailable = false;
@@ -209,6 +212,75 @@ class _RealSrSettingPageState extends State<RealSrSettingPage> {
   Future<void> _refreshMangaJaNaiStatus() async {
     final missing = await MangaJaNaiEngine.missingRequirements();
     if (mounted) setState(() => _mangaJaNaiMissing = missing);
+  }
+
+  /// 从官方源在线安装 MangaJaNai 引擎（无需 GUI）。
+  Future<void> _installEngineOnline() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(t.realSr.mangaJaNaiOnlineInstall),
+        content: Text(t.realSr.mangaJaNaiOnlineInstallConfirm),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(t.common.cancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(t.realSr.mangaJaNaiOnlineInstallAction),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() {
+      _installingEngine = true;
+      _installStatusText = null;
+    });
+    try {
+      await MangaJaNaiBootstrap.install(
+        onProgress: (stage, {received, total, detail}) {
+          if (!mounted) return;
+          final base = switch (stage) {
+            MangaJaNaiInstallStage.python =>
+              t.realSr.mangaJaNaiInstallStagePython,
+            MangaJaNaiInstallStage.deps => t.realSr.mangaJaNaiInstallStageDeps,
+            MangaJaNaiInstallStage.torch =>
+              t.realSr.mangaJaNaiInstallStageTorch,
+            MangaJaNaiInstallStage.backend =>
+              t.realSr.mangaJaNaiInstallStageBackend,
+            MangaJaNaiInstallStage.models =>
+              t.realSr.mangaJaNaiInstallStageModels,
+          };
+          final progress = received != null && total != null && total > 0
+              ? ' ${(received / 1024 / 1024).toStringAsFixed(0)}/'
+                    '${(total / 1024 / 1024).toStringAsFixed(0)} MB'
+              : '';
+          setState(() {
+            _installStatusText = detail == null
+                ? '$base$progress'
+                : '$base$progress\n$detail';
+          });
+        },
+      );
+      if (!mounted) return;
+      showSuccessToast(t.realSr.mangaJaNaiInstallDone);
+    } catch (e, s) {
+      logger.e('MangaJaNai 在线安装失败', error: e, stackTrace: s);
+      if (mounted) {
+        showErrorToast('${t.realSr.mangaJaNaiInstallFailed}: $e');
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _installingEngine = false;
+          _installStatusText = null;
+        });
+      }
+      await _loadSettings();
+    }
   }
 
   Future<void> _refreshAvailability() async {
@@ -547,6 +619,28 @@ class _RealSrSettingPageState extends State<RealSrSettingPage> {
           ),
         ),
         _buildMangaJaNaiStatusTile(),
+        if (_mangaJaNaiMissing.isNotEmpty)
+          ListTile(
+            leading: Icon(
+              _installingEngine
+                  ? Icons.downloading_outlined
+                  : Icons.cloud_download_outlined,
+            ),
+            title: Text(t.realSr.mangaJaNaiOnlineInstall),
+            subtitle: Text(
+              _installStatusText ?? t.realSr.mangaJaNaiOnlineInstallSubtitle,
+            ),
+            trailing: _installingEngine
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : TextButton(
+                    onPressed: _installEngineOnline,
+                    child: Text(t.realSr.mangaJaNaiOnlineInstallAction),
+                  ),
+          ),
         // NVIDIA 的「CUDA - 系统内存回退策略」若保持默认，显存不足时会回退到
         // 系统内存，超分速度差一个数量级。这是驱动侧设置，应用无法代劳，只能提示。
         ListTile(

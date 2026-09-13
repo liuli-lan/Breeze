@@ -73,6 +73,12 @@ class MangaJaNaiBatchScheduler {
     _pending.add(item);
 
     if (_pending.length >= maxBatchSize) {
+      // 达到批上限：立即开跑，避免首批等待过久与显存峰值过高。
+      _kick();
+    } else if (_pending.length == 1 && !_draining) {
+      // 空队列的第一张：立即开跑，不付攒批窗口——阅读器首图
+      // 不应该多等 150ms。已在执行的批次跑完后，其 while 循环会
+      // 接住此间新入队的图片，攒批行为不受影响。
       _kick();
     } else {
       _collectTimer ??= Timer(collectWindow, _kick);
