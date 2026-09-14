@@ -2840,14 +2840,71 @@ class Translations$realSr$zh_CN {
 	/// zh-CN: '超分引擎'
 	String get engine => '超分引擎';
 
-	/// zh-CN: 'NCNN 为内置方案；MangaJaNai 调用本机已安装的 MangaJaNaiConverterGui 命令行后端'
-	String get engineSubtitle => 'NCNN 为内置方案；MangaJaNai 调用本机已安装的 MangaJaNaiConverterGui 命令行后端';
+	/// zh-CN: 'NCNN 为内置方案；MangaJaNai 可调用本机 CLI 后端（仅 Windows）或局域网内的远程超分服务'
+	String get engineSubtitle => 'NCNN 为内置方案；MangaJaNai 可调用本机 CLI 后端（仅 Windows）或局域网内的远程超分服务';
 
 	/// zh-CN: 'NCNN（内置）'
 	String get engineNcnn => 'NCNN（内置）';
 
 	/// zh-CN: 'MangaJaNai（本地）'
 	String get engineMangaJaNai => 'MangaJaNai（本地）';
+
+	/// zh-CN: 'MangaJaNai（远程）'
+	String get engineMangaJaNaiRemote => 'MangaJaNai（远程）';
+
+	/// zh-CN: '远程服务器'
+	String get remoteSection => '远程服务器';
+
+	/// zh-CN: '服务器配置'
+	String get remoteConfig => '服务器配置';
+
+	/// zh-CN: '地址与 Token 需与电脑上运行的 mjn-service 一致'
+	String get remoteConfigSubtitle => '地址与 Token 需与电脑上运行的 mjn-service 一致';
+
+	/// zh-CN: '配置'
+	String get remoteConfigAction => '配置';
+
+	/// zh-CN: '服务器地址'
+	String get remoteBaseUrl => '服务器地址';
+
+	/// zh-CN: '例如 192.168.1.100:8765'
+	String get remoteBaseUrlHint => '例如 192.168.1.100:8765';
+
+	/// zh-CN: '访问 Token'
+	String get remoteApiKey => '访问 Token';
+
+	/// zh-CN: '对应服务端的 MJN_API_KEY；服务端未开鉴权时留空'
+	String get remoteApiKeyHint => '对应服务端的 MJN_API_KEY；服务端未开鉴权时留空';
+
+	/// zh-CN: '测试连接'
+	String get remoteTest => '测试连接';
+
+	/// zh-CN: '正在测试连接…'
+	String get remoteTesting => '正在测试连接…';
+
+	/// zh-CN: '远程服务器已就绪'
+	String get remoteReady => '远程服务器已就绪';
+
+	/// zh-CN: '远程服务器不可用'
+	String get remoteNotReady => '远程服务器不可用';
+
+	/// zh-CN: '$device · 队列 $depth/$queueMax · 已加载 $models 个模型'
+	String remoteStatusFormat({required Object device, required Object depth, required Object queueMax, required Object models}) => '${device} · 队列 ${depth}/${queueMax} · 已加载 ${models} 个模型';
+
+	/// zh-CN: '连接成功'
+	String get remoteTestSuccess => '连接成功';
+
+	/// zh-CN: '连接失败'
+	String get remoteTestFailed => '连接失败';
+
+	/// zh-CN: '未配置服务器地址'
+	String get remoteNotConfigured => '未配置服务器地址';
+
+	/// zh-CN: '服务端缺少模型，部分链会降级'
+	String get remoteMissingModels => '服务端缺少模型，部分链会降级';
+
+	/// zh-CN: '服务端未启用 CUDA，超分会非常慢'
+	String get remoteCudaOff => '服务端未启用 CUDA，超分会非常慢';
 
 	/// zh-CN: '放大倍率'
 	String get mangaJaNaiScale => '放大倍率';
@@ -4816,9 +4873,28 @@ extension on Translations {
 			'realSr.coremlGeneralOption' => '通用选项（放大倍率）',
 			'realSr.coremlTileInfo' => '分块信息',
 			'realSr.engine' => '超分引擎',
-			'realSr.engineSubtitle' => 'NCNN 为内置方案；MangaJaNai 调用本机已安装的 MangaJaNaiConverterGui 命令行后端',
+			'realSr.engineSubtitle' => 'NCNN 为内置方案；MangaJaNai 可调用本机 CLI 后端（仅 Windows）或局域网内的远程超分服务',
 			'realSr.engineNcnn' => 'NCNN（内置）',
 			'realSr.engineMangaJaNai' => 'MangaJaNai（本地）',
+			'realSr.engineMangaJaNaiRemote' => 'MangaJaNai（远程）',
+			'realSr.remoteSection' => '远程服务器',
+			'realSr.remoteConfig' => '服务器配置',
+			'realSr.remoteConfigSubtitle' => '地址与 Token 需与电脑上运行的 mjn-service 一致',
+			'realSr.remoteConfigAction' => '配置',
+			'realSr.remoteBaseUrl' => '服务器地址',
+			'realSr.remoteBaseUrlHint' => '例如 192.168.1.100:8765',
+			'realSr.remoteApiKey' => '访问 Token',
+			'realSr.remoteApiKeyHint' => '对应服务端的 MJN_API_KEY；服务端未开鉴权时留空',
+			'realSr.remoteTest' => '测试连接',
+			'realSr.remoteTesting' => '正在测试连接…',
+			'realSr.remoteReady' => '远程服务器已就绪',
+			'realSr.remoteNotReady' => '远程服务器不可用',
+			'realSr.remoteStatusFormat' => ({required Object device, required Object depth, required Object queueMax, required Object models}) => '${device} · 队列 ${depth}/${queueMax} · 已加载 ${models} 个模型',
+			'realSr.remoteTestSuccess' => '连接成功',
+			'realSr.remoteTestFailed' => '连接失败',
+			'realSr.remoteNotConfigured' => '未配置服务器地址',
+			'realSr.remoteMissingModels' => '服务端缺少模型，部分链会降级',
+			'realSr.remoteCudaOff' => '服务端未启用 CUDA，超分会非常慢',
 			'realSr.mangaJaNaiScale' => '放大倍率',
 			'realSr.mangaJaNaiScaleSubtitle' => '黑白页按原图高度自动选模型，彩色页自动分流',
 			'realSr.mangaJaNaiThreshold' => '灰度判定阈值',
@@ -4945,6 +5021,8 @@ extension on Translations {
 			'search.showErrors' => '显示错误',
 			'search.resultCount' => ({required Object count}) => '${count} 条',
 			'search.noResults' => '无结果',
+			_ => null,
+		} ?? switch (path) {
 			'search.loadFailedForSource' => ({required Object source}) => '${source} 加载失败',
 			'discover.title' => '发现',
 			'discover.search' => '搜索',
@@ -4964,8 +5042,6 @@ extension on Translations {
 			'discover.pluginCloseFailed' => ({required Object error}) => '插件关闭失败: ${error}',
 			'discover.pluginDebugLoadFailed' => ({required Object error}) => '插件调试加载失败，已回退数据库: ${error}',
 			'searchResult.enterPageNumber' => '输入页数',
-			_ => null,
-		} ?? switch (path) {
 			'searchResult.pleaseEnterNumber' => '请输入数字',
 			'searchResult.returnToTop' => '返回顶部',
 			'searchResult.jumpToPage' => '跳转页面',

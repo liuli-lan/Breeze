@@ -18,17 +18,20 @@ class GlobalSettingPage extends StatefulWidget {
 }
 
 class _GlobalSettingPageState extends State<GlobalSettingPage> {
-  late final Future<bool> _realSrAvailable;
-
-  @override
-  void initState() {
-    super.initState();
-    _realSrAvailable = RealSrSuperResolution.isDeviceSupported;
-  }
+  /// 超分设置入口的可见性。
+  ///
+  /// 不用 `late final` 钉住：入口可见性取决于当前平台与引擎，而用户可能刚在
+  /// 超分设置页里切换引擎（例如非 arm64 的 Android 设备改用远程服务器），
+  /// 缓存住就不会随「从子页面返回」刷新。
+  Future<bool> _realSrAvailable = RealSrSuperResolution.isDeviceSupported;
 
   Future<void> _openSubPage(PageRouteInfo route) async {
     await context.pushRoute(route);
-    if (mounted) setState(() {});
+    if (mounted) {
+      setState(() {
+        _realSrAvailable = RealSrSuperResolution.isDeviceSupported;
+      });
+    }
   }
 
   String _themeLabel(ThemeMode mode) {

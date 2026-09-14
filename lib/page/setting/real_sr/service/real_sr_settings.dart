@@ -34,6 +34,9 @@ class RealSrSettings {
   static const _keyMangaJaNaiBackendSrcDir =
       'realsr_mangajanai_backend_src_dir';
   static const _keyMangaJaNaiModelsDir = 'realsr_mangajanai_models_dir';
+  static const _keyMangaJaNaiRemoteBaseUrl =
+      'realsr_mangajanai_remote_base_url';
+  static const _keyMangaJaNaiRemoteApiKey = 'realsr_mangajanai_remote_api_key';
 
   /// 默认并发数：**全平台固定 1（单线程）**。
   ///
@@ -203,17 +206,38 @@ class RealSrSettings {
     await prefs.setString(_keyDesktopNcnnNoise, value.name);
   }
 
-  /// 桌面端（Windows）使用的超分引擎，默认内置 NCNN。
-  static Future<DesktopSrEngine> loadDesktopEngine() async {
+  /// 当前平台可选的超分引擎。
+  ///
+  /// - Windows：内置 NCNN / 本地 MangaJaNai CLI / 远程服务端
+  /// - Android、Linux：内置 NCNN / 远程服务端
+  ///   （本地 CLI 后端依赖 MangaJaNaiConverterGui 的 Windows 安装约定）
+  /// - iOS / macOS：走 CoreML，不使用本枚举（调用方自行分支）
+  static List<SrEngine> get availableSrEngines => Platform.isWindows
+      ? const [SrEngine.ncnn, SrEngine.mangaJaNai, SrEngine.mangaJaNaiRemote]
+      : const [SrEngine.ncnn, SrEngine.mangaJaNaiRemote];
+
+  /// 当前生效的超分引擎，默认内置 NCNN。
+  ///
+  /// 存储键沿用历史名 `realsr_desktop_engine`：该键早于「Android 也能选引擎」
+  /// 这一改动，改名会让老用户的既有选择丢失，故保持不变。
+  ///
+  /// **会做平台归一化**：保存值不在 [availableSrEngines] 里时回退到内置 NCNN。
+  /// 回退只影响返回值、**不写回存储** —— 这样「在 Windows 上选了本地 MangaJaNai，
+  /// 配置被同步到 Android」时 Android 侧安全降级为 NCNN，切回 Windows 后原选择仍在。
+  ///
+  /// 归一化必须发生在这一层：超分主流程与设置页都读这个值，只在设置页做回退
+  /// 会导致「界面显示 NCNN、实际按 mangaJaNai 执行」的不一致。
+  static Future<SrEngine> loadSrEngine() async {
     final prefs = await SharedPreferences.getInstance();
     final name = prefs.getString(_keyDesktopEngine);
-    return DesktopSrEngine.values.firstWhere(
+    final saved = SrEngine.values.firstWhere(
       (e) => e.name == name,
-      orElse: () => DesktopSrEngine.ncnn,
+      orElse: () => SrEngine.ncnn,
     );
+    return availableSrEngines.contains(saved) ? saved : SrEngine.ncnn;
   }
 
-  static Future<void> saveDesktopEngine(DesktopSrEngine value) async {
+  static Future<void> saveSrEngine(SrEngine value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyDesktopEngine, value.name);
   }
@@ -272,5 +296,32 @@ class RealSrSettings {
   static Future<void> saveMangaJaNaiModelsDir(String value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyMangaJaNaiModelsDir, value.trim());
+  }
+
+  /// 远程 MangaJaNai 服务地址（mjn-service），如 `192.168.1.100:8765`。
+  ///
+  /// 原样保存用户输入（含可能的 `http://` 前缀与路径），规范化在
+  /// `MangaJaNaiRemoteEngine.normalizeBaseUrl` 里做 —— 这里保留原文，
+  /// 用户回到设置页时看到的是自己填过的写法。
+  static Future<String> loadMangaJaNaiRemoteBaseUrl() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_keyMangaJaNaiRemoteBaseUrl) ?? '';
+  }
+
+  static Future<void> saveMangaJaNaiRemoteBaseUrl(String value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyMangaJaNaiRemoteBaseUrl, value.trim());
+  }
+
+  /// 远程服务的访问 Token，对应服务端的 `MJN_API_KEY`。
+  /// 服务端未开鉴权时留空。
+  static Future<String> loadMangaJaNaiRemoteApiKey() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_keyMangaJaNaiRemoteApiKey) ?? '';
+  }
+
+  static Future<void> saveMangaJaNaiRemoteApiKey(String value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyMangaJaNaiRemoteApiKey, value.trim());
   }
 }

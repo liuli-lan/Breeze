@@ -58,22 +58,42 @@ enum RealSrNoiseLevel {
   };
 }
 
-/// 桌面端（Windows）超分引擎。
+/// 超分引擎（Android / Windows / Linux 共用）。
 ///
 /// - [ncnn]：内置 waifu2x / Real-CUGAN ncnn 方案，模型随应用下载。
 /// - [mangaJaNai]：调用本机已安装的 MangaJaNaiConverterGui CLI 后端，
 ///   模型与 Python 运行时由 GUI 维护，仅 Windows 可用。
+/// - [mangaJaNaiRemote]：把超分任务发到局域网内的 mjn-service
+///   （把本机 GPU 包装成 HTTP 服务）。各平台都能用，是移动端接入本机
+///   4070S 算力的方式；不需要客户端准备 Python 运行时与模型。
+///
+/// 平台可选范围由设置页决定：Android / Linux 提供 ncnn 与 mangaJaNaiRemote，
+/// Windows 三种都提供。
 @JsonEnum()
-enum DesktopSrEngine {
+enum SrEngine {
   @JsonValue('ncnn')
   ncnn,
   @JsonValue('mangaJaNai')
-  mangaJaNai;
+  mangaJaNai,
+  @JsonValue('mangaJaNaiRemote')
+  mangaJaNaiRemote;
 
   String get label => switch (this) {
     ncnn => t.realSr.engineNcnn,
     mangaJaNai => t.realSr.engineMangaJaNai,
+    mangaJaNaiRemote => t.realSr.engineMangaJaNaiRemote,
   };
+
+  /// 是否属于 MangaJaNai 家族（本地 CLI 或远程服务端）。
+  ///
+  /// 两者共用放大倍率与灰度判定阈值，且都不走 NCNN 的并发池与分块设置。
+  bool get isMangaJaNai => this != SrEngine.ncnn;
+
+  /// 是否为远程服务端引擎。
+  bool get isRemote => this == SrEngine.mangaJaNaiRemote;
+
+  /// 是否为需要本机 Python 后端的本地 CLI 引擎。
+  bool get isLocalCli => this == SrEngine.mangaJaNai;
 }
 
 @JsonEnum()

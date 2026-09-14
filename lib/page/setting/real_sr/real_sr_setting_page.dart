@@ -11,6 +11,7 @@ import 'package:zephyr/page/setting/real_sr/service/android_ncnn_model_config.da
 import 'package:zephyr/page/setting/real_sr/service/desktop_ncnn_model_config.dart';
 import 'package:zephyr/page/setting/real_sr/service/mangajanai_bootstrap.dart';
 import 'package:zephyr/page/setting/real_sr/service/mangajanai_engine.dart';
+import 'package:zephyr/page/setting/real_sr/service/mangajanai_remote.dart';
 import 'package:zephyr/page/setting/real_sr/service/real_sr_settings.dart';
 import 'package:zephyr/page/setting/real_sr/service/real_sr_super_resolution.dart';
 import 'package:zephyr/type/enum.dart';
@@ -67,7 +68,7 @@ class _RealSrSettingPageState extends State<RealSrSettingPage> {
   int _tileSize = 0;
   AndroidNcnnMode _desktopNcnnMode = DesktopNcnnModelConfig.defaultMode;
   AndroidNcnnNoise _desktopNcnnNoise = DesktopNcnnModelConfig.defaultNoise;
-  DesktopSrEngine _desktopEngine = DesktopSrEngine.ncnn;
+  SrEngine _srEngine = SrEngine.ncnn;
   int _mangaJaNaiScale = 2;
   int _mangaJaNaiGrayscaleThreshold = 12;
   String _mangaJaNaiPythonPath = '';
@@ -83,11 +84,42 @@ class _RealSrSettingPageState extends State<RealSrSettingPage> {
   bool _importing = false;
   double _downloadProgress = 0;
 
+  /// 远程服务器配置（保存值，界面直接回显用户填的原文）。
+  String _remoteBaseUrl = '';
+  String _remoteApiKey = '';
+
+  /// 远程探活状态：二者互斥，`_remoteError` 非空时 `_remoteHealth` 为 null。
+  RemoteHealth? _remoteHealth;
+  String? _remoteError;
+  bool _remoteTesting = false;
+
   bool get _usesCoreML => Platform.isIOS || Platform.isMacOS;
 
-  /// Windows 下是否选择了本地 MangaJaNai 引擎。
-  bool get _useMangaJaNaiEngine =>
-      Platform.isWindows && _desktopEngine == DesktopSrEngine.mangaJaNai;
+  /// 当前平台可选的引擎。
+  ///
+  /// 与 `RealSrSettings.loadSrEngine()` 的平台归一化共用同一份定义 —— 界面下拉
+  /// 与「实际生效的引擎」必须来自同一个列表，否则会出现「下拉里没有、却在执行」
+  /// 的选项。iOS / macOS 走 CoreML，由 `_usesCoreML` 分支拦在前面。
+  List<SrEngine> get _availableEngines => RealSrSettings.availableSrEngines;
+
+  /// 实际生效的引擎。
+  ///
+  /// `_loadSettings` 读到的值已在存储层归一化；这里再兜一次底，覆盖页面停留期间
+  /// 配置被其他入口改写的情况。
+  SrEngine get _effectiveEngine =>
+      _availableEngines.contains(_srEngine) ? _srEngine : SrEngine.ncnn;
+
+  /// 是否使用本地 MangaJaNai CLI 后端。
+  bool get _useLocalCliEngine => _effectiveEngine.isLocalCli;
+
+  /// 是否使用远程 MangaJaNai 服务端。
+  bool get _useRemoteEngine => _effectiveEngine.isRemote;
+
+  /// 是否属于 MangaJaNai 家族（本地 CLI 或远程服务端）。
+  ///
+  /// 两者共用放大倍率与灰度判定阈值，且都不走 NCNN 的并发池与分块设置，
+  /// 也不需要下载内置模型 —— 界面上按同一个条件收拢。
+  bool get _useMangaJaNaiEngine => _effectiveEngine.isMangaJaNai;
 
   List<RealSrResolutionThreshold> get _availableThresholds {
     if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
@@ -116,7 +148,7 @@ class _RealSrSettingPageState extends State<RealSrSettingPage> {
   Future<void> _loadSettings() async {
     final family = await RealSrSettings.loadCoreMLFamily();
     final variant = await RealSrSettings.loadCoreMLVariant(family);
-    final desktopEngine = await RealSrSettings.loadDesktopEngine();
+    final srEngine = await RealSrSettings.loadSrEngine();
     final mangaJaNaiScale = await RealSrSettings.loadMangaJaNaiScale();
     final mangaJaNaiThreshold =
         await RealSrSettings.loadMangaJaNaiGrayscaleThreshold();
@@ -125,6 +157,8 @@ class _RealSrSettingPageState extends State<RealSrSettingPage> {
     final mangaJaNaiBackendSrcDir =
         await RealSrSettings.loadMangaJaNaiBackendSrcDir();
     final mangaJaNaiModelsDir = await RealSrSettings.loadMangaJaNaiModelsDir();
+    final remoteBaseUrl = await RealSrSettings.loadMangaJaNaiRemoteBaseUrl();
+    final remoteApiKey = await RealSrSettings.loadMangaJaNaiRemoteApiKey();
     final results = await Future.wait([
       RealSrSettings.loadAutoUpscale(),
       RealSrSettings.loadResolutionThreshold(),
@@ -144,19 +178,23 @@ class _RealSrSettingPageState extends State<RealSrSettingPage> {
       _desktopNcnnMode = results[4] as AndroidNcnnMode;
       _desktopNcnnNoise = results[5] as AndroidNcnnNoise;
       _isAvailable = results[6] as bool;
-      _desktopEngine = desktopEngine;
+      _srEngine = srEngine;
       _mangaJaNaiScale = mangaJaNaiScale;
       _mangaJaNaiGrayscaleThreshold = mangaJaNaiThreshold;
       _mangaJaNaiPythonPath = mangaJaNaiPythonPath;
       _mangaJaNaiBackendSrcDir = mangaJaNaiBackendSrcDir;
       _mangaJaNaiModelsDir = mangaJaNaiModelsDir;
+      _remoteBaseUrl = remoteBaseUrl;
+      _remoteApiKey = remoteApiKey;
       _coreMLFamily = family;
       _coreMLVariant = variant;
       _loading = false;
     });
 
-    if (_useMangaJaNaiEngine) {
+    if (_useLocalCliEngine) {
       await _refreshMangaJaNaiStatus();
+    } else if (_useRemoteEngine) {
+      await _refreshRemoteStatus();
     }
   }
 
@@ -190,12 +228,14 @@ class _RealSrSettingPageState extends State<RealSrSettingPage> {
     setState(() => _desktopNcnnNoise = value);
   }
 
-  Future<void> _setDesktopEngine(DesktopSrEngine value) async {
-    await RealSrSettings.saveDesktopEngine(value);
-    setState(() => _desktopEngine = value);
+  Future<void> _setSrEngine(SrEngine value) async {
+    await RealSrSettings.saveSrEngine(value);
+    setState(() => _srEngine = value);
     await _refreshAvailability();
-    if (_useMangaJaNaiEngine) {
+    if (_useLocalCliEngine) {
       await _refreshMangaJaNaiStatus();
+    } else if (_useRemoteEngine) {
+      await _refreshRemoteStatus();
     }
   }
 
@@ -212,6 +252,162 @@ class _RealSrSettingPageState extends State<RealSrSettingPage> {
   Future<void> _refreshMangaJaNaiStatus() async {
     final missing = await MangaJaNaiEngine.missingRequirements();
     if (mounted) setState(() => _mangaJaNaiMissing = missing);
+  }
+
+  // =========================================================
+  // 远程服务器（mjn-service）
+  // =========================================================
+
+  /// 远程状态副标题：优先显示探活结果，其次是错误原因，最后是未配置提示。
+  String get _remoteStatusLine {
+    if (_remoteBaseUrl.trim().isEmpty) return t.realSr.remoteNotConfigured;
+    if (_remoteTesting) return t.realSr.remoteTesting;
+    final error = _remoteError;
+    if (error != null) return error;
+    final health = _remoteHealth;
+    if (health == null) return t.realSr.remoteNotConfigured;
+    return t.realSr.remoteStatusFormat(
+      device: health.device,
+      depth: health.queueDepth,
+      queueMax: health.queueMax,
+      models: health.loadedModels,
+    );
+  }
+
+  /// 探活远程服务（进页面 / 切换引擎时调用）。
+  ///
+  /// 走 `force` 绕过 30 秒缓存：设置页是用户主动查看的地方，显示上一次的
+  /// 陈旧结论比多打一次请求更让人困惑。
+  Future<void> _refreshRemoteStatus() async {
+    if (!_useRemoteEngine) return;
+    setState(() {
+      _remoteTesting = true;
+      _remoteError = null;
+    });
+    try {
+      final health = await MangaJaNaiRemoteEngine.probe(force: true);
+      if (!mounted) return;
+      setState(() => _remoteHealth = health);
+    } on MangaJaNaiRemoteException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _remoteHealth = null;
+        _remoteError = e.message;
+      });
+    } finally {
+      if (mounted) setState(() => _remoteTesting = false);
+    }
+  }
+
+  /// 「测试连接」按钮：强制探活并把结果反馈给用户。
+  Future<void> _testRemoteConnection() async {
+    setState(() {
+      _remoteTesting = true;
+      _remoteError = null;
+    });
+    try {
+      final health = await MangaJaNaiRemoteEngine.testConnection();
+      if (!mounted) return;
+      setState(() => _remoteHealth = health);
+      showSuccessToast(t.realSr.remoteTestSuccess);
+    } catch (e, s) {
+      logger.w('远程超分服务连接测试失败', error: e, stackTrace: s);
+      if (!mounted) return;
+      setState(() {
+        _remoteHealth = null;
+        _remoteError = '$e';
+      });
+      showErrorToast('${t.realSr.remoteTestFailed}：$e');
+    } finally {
+      if (mounted) {
+        setState(() => _remoteTesting = false);
+        await _refreshAvailability();
+      }
+    }
+  }
+
+  /// 弹窗编辑远程服务器地址与 Token。
+  Future<void> _editRemoteConfig() async {
+    final urlCtrl = TextEditingController(text: _remoteBaseUrl);
+    final keyCtrl = TextEditingController(text: _remoteApiKey);
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(t.realSr.remoteConfig),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: urlCtrl,
+                autocorrect: false,
+                decoration: InputDecoration(
+                  labelText: t.realSr.remoteBaseUrl,
+                  hintText: t.realSr.remoteBaseUrlHint,
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: keyCtrl,
+                autocorrect: false,
+                decoration: InputDecoration(
+                  labelText: t.realSr.remoteApiKey,
+                  hintText: t.realSr.remoteApiKeyHint,
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(t.common.cancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(t.common.save),
+          ),
+        ],
+      ),
+    );
+
+    if (saved != true || !mounted) return;
+
+    await Future.wait([
+      RealSrSettings.saveMangaJaNaiRemoteBaseUrl(urlCtrl.text),
+      RealSrSettings.saveMangaJaNaiRemoteApiKey(keyCtrl.text),
+    ]);
+    // 地址 / Token 变了，旧的探活结论作废。
+    MangaJaNaiRemoteEngine.invalidateHealthCache();
+    setState(() {
+      _remoteBaseUrl = urlCtrl.text.trim();
+      _remoteApiKey = keyCtrl.text.trim();
+      _remoteHealth = null;
+      _remoteError = null;
+    });
+    await _refreshRemoteStatus();
+    await _refreshAvailability();
+  }
+
+  /// 远程服务端的健康告警：缺模型、未启用 CUDA、开了鉴权但没填 Token。
+  Widget? _buildRemoteWarningTile() {
+    final health = _remoteHealth;
+    if (health == null) return null;
+
+    final warnings = <String>[
+      if (!health.cuda) t.realSr.remoteCudaOff,
+      if (!health.modelsReady)
+        '${t.realSr.remoteMissingModels}（${health.missingModels.length}）',
+      if (health.authRequired && _remoteApiKey.trim().isEmpty)
+        t.realSr.remoteApiKeyHint,
+    ];
+    if (warnings.isEmpty) return null;
+
+    return ListTile(
+      leading: const Icon(Icons.warning_amber_rounded),
+      title: Text(warnings.join('\n')),
+    );
   }
 
   /// 从官方源在线安装 MangaJaNai 引擎（无需 GUI）。
@@ -531,125 +727,36 @@ class _RealSrSettingPageState extends State<RealSrSettingPage> {
       ];
     }
 
-    if (Platform.isAndroid) {
-      return [
+    // 引擎选择：除 iOS / macOS（走 CoreML）外所有平台都有 ——
+    // Android 也能选远程服务端，这正是让手机用上本机 4070S 的入口。
+    final items = <Widget>[
+      ListTile(
+        leading: const Icon(Icons.memory_outlined),
+        title: Text(t.realSr.engine),
+        subtitle: Text(t.realSr.engineSubtitle),
+        trailing: FluentDropdown<SrEngine>(
+          value: _effectiveEngine,
+          displayValue: _effectiveEngine.label,
+          items: {for (final engine in _availableEngines) engine: engine.label},
+          onChanged: _setSrEngine,
+        ),
+      ),
+    ];
+
+    if (_useRemoteEngine) {
+      items.addAll(_buildRemoteMangaJaNaiItems());
+    } else if (_useLocalCliEngine) {
+      items.addAll(_buildLocalMangaJaNaiItems());
+    } else if (Platform.isAndroid) {
+      items.add(
         ListTile(
           leading: const Icon(Icons.info_outline),
           title: Text(t.realSr.androidSuperResolution),
           subtitle: Text(t.realSr.androidSuperResolutionSubtitle),
         ),
-      ];
-    }
-
-    // Windows / Linux
-    final items = <Widget>[];
-
-    // Linux 无本地 MangaJaNai GUI 安装约定，仅 Windows 提供引擎切换。
-    if (Platform.isWindows) {
-      items.add(
-        ListTile(
-          leading: const Icon(Icons.memory_outlined),
-          title: Text(t.realSr.engine),
-          subtitle: Text(t.realSr.engineSubtitle),
-          trailing: FluentDropdown<DesktopSrEngine>(
-            value: _desktopEngine,
-            displayValue: _desktopEngine.label,
-            items: {
-              for (final engine in DesktopSrEngine.values) engine: engine.label,
-            },
-            onChanged: _setDesktopEngine,
-          ),
-        ),
       );
-    }
-
-    if (_useMangaJaNaiEngine) {
-      final effectiveScale =
-          _mangaJaNaiScaleLabels.containsKey(_mangaJaNaiScale)
-          ? _mangaJaNaiScale
-          : 2;
-      final effectiveThreshold =
-          _mangaJaNaiThresholdLabels.containsKey(_mangaJaNaiGrayscaleThreshold)
-          ? _mangaJaNaiGrayscaleThreshold
-          : 12;
-      final pathsCustomized =
-          _mangaJaNaiPythonPath.isNotEmpty ||
-          _mangaJaNaiBackendSrcDir.isNotEmpty ||
-          _mangaJaNaiModelsDir.isNotEmpty;
-      items.addAll([
-        ListTile(
-          leading: const Icon(Icons.open_in_full_outlined),
-          title: Text(t.realSr.mangaJaNaiScale),
-          subtitle: Text(t.realSr.mangaJaNaiScaleSubtitle),
-          trailing: FluentDropdown<int>(
-            value: effectiveScale,
-            displayValue: _mangaJaNaiScaleLabels[effectiveScale]!,
-            items: {
-              for (final entry in _mangaJaNaiScaleLabels.entries)
-                entry.key: entry.value,
-            },
-            onChanged: (value) => _setMangaJaNaiScale(value),
-          ),
-        ),
-        ListTile(
-          leading: const Icon(Icons.filter_b_and_w_outlined),
-          title: Text(t.realSr.mangaJaNaiThreshold),
-          subtitle: Text(t.realSr.mangaJaNaiThresholdSubtitle),
-          trailing: FluentDropdown<int>(
-            value: effectiveThreshold,
-            displayValue: _mangaJaNaiThresholdLabels[effectiveThreshold]!,
-            items: {
-              for (final entry in _mangaJaNaiThresholdLabels.entries)
-                entry.key: entry.value,
-            },
-            onChanged: (value) => _setMangaJaNaiGrayscaleThreshold(value),
-          ),
-        ),
-        ListTile(
-          leading: const Icon(Icons.folder_open_outlined),
-          title: Text(
-            pathsCustomized
-                ? t.realSr.mangaJaNaiPathsCustom
-                : t.realSr.mangaJaNaiPaths,
-          ),
-          subtitle: Text(t.realSr.mangaJaNaiPathsSubtitle),
-          trailing: TextButton(
-            onPressed: _editMangaJaNaiPaths,
-            child: Text(t.realSr.importModelAction),
-          ),
-        ),
-        _buildMangaJaNaiStatusTile(),
-        if (_mangaJaNaiMissing.isNotEmpty)
-          ListTile(
-            leading: Icon(
-              _installingEngine
-                  ? Icons.downloading_outlined
-                  : Icons.cloud_download_outlined,
-            ),
-            title: Text(t.realSr.mangaJaNaiOnlineInstall),
-            subtitle: Text(
-              _installStatusText ?? t.realSr.mangaJaNaiOnlineInstallSubtitle,
-            ),
-            trailing: _installingEngine
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : TextButton(
-                    onPressed: _installEngineOnline,
-                    child: Text(t.realSr.mangaJaNaiOnlineInstallAction),
-                  ),
-          ),
-        // NVIDIA 的「CUDA - 系统内存回退策略」若保持默认，显存不足时会回退到
-        // 系统内存，超分速度差一个数量级。这是驱动侧设置，应用无法代劳，只能提示。
-        ListTile(
-          leading: const Icon(Icons.memory_outlined),
-          title: Text(t.realSr.mangaJaNaiNvidiaTitle),
-          subtitle: Text(t.realSr.mangaJaNaiNvidiaSubtitle),
-        ),
-      ]);
     } else {
+      // Windows / Linux 的内置 NCNN
       items.addAll([
         ListTile(
           leading: const Icon(Icons.speed_outlined),
@@ -681,6 +788,145 @@ class _RealSrSettingPageState extends State<RealSrSettingPage> {
     }
 
     return items;
+  }
+
+  /// MangaJaNai 家族共用的调参项：放大倍率与灰度判定阈值。
+  ///
+  /// 本地 CLI 与远程服务端按同一套链配置工作（服务端的 `chains.py` 就是照抄
+  /// Breeze 的 `_buildChains()`），因此这两项对两者含义完全一致。
+  List<Widget> _buildMangaJaNaiTuningItems() {
+    final effectiveScale = _mangaJaNaiScaleLabels.containsKey(_mangaJaNaiScale)
+        ? _mangaJaNaiScale
+        : 2;
+    final effectiveThreshold =
+        _mangaJaNaiThresholdLabels.containsKey(_mangaJaNaiGrayscaleThreshold)
+        ? _mangaJaNaiGrayscaleThreshold
+        : 12;
+    return [
+      ListTile(
+        leading: const Icon(Icons.open_in_full_outlined),
+        title: Text(t.realSr.mangaJaNaiScale),
+        subtitle: Text(t.realSr.mangaJaNaiScaleSubtitle),
+        trailing: FluentDropdown<int>(
+          value: effectiveScale,
+          displayValue: _mangaJaNaiScaleLabels[effectiveScale]!,
+          items: {
+            for (final entry in _mangaJaNaiScaleLabels.entries)
+              entry.key: entry.value,
+          },
+          onChanged: (value) => _setMangaJaNaiScale(value),
+        ),
+      ),
+      ListTile(
+        leading: const Icon(Icons.filter_b_and_w_outlined),
+        title: Text(t.realSr.mangaJaNaiThreshold),
+        subtitle: Text(t.realSr.mangaJaNaiThresholdSubtitle),
+        trailing: FluentDropdown<int>(
+          value: effectiveThreshold,
+          displayValue: _mangaJaNaiThresholdLabels[effectiveThreshold]!,
+          items: {
+            for (final entry in _mangaJaNaiThresholdLabels.entries)
+              entry.key: entry.value,
+          },
+          onChanged: (value) => _setMangaJaNaiGrayscaleThreshold(value),
+        ),
+      ),
+    ];
+  }
+
+  /// 本地 MangaJaNai CLI 后端：调参 + 路径覆写 + 就绪状态 + 在线安装 + NVIDIA 提示。
+  List<Widget> _buildLocalMangaJaNaiItems() {
+    final pathsCustomized =
+        _mangaJaNaiPythonPath.isNotEmpty ||
+        _mangaJaNaiBackendSrcDir.isNotEmpty ||
+        _mangaJaNaiModelsDir.isNotEmpty;
+    return [
+      ..._buildMangaJaNaiTuningItems(),
+      ListTile(
+        leading: const Icon(Icons.folder_open_outlined),
+        title: Text(
+          pathsCustomized
+              ? t.realSr.mangaJaNaiPathsCustom
+              : t.realSr.mangaJaNaiPaths,
+        ),
+        subtitle: Text(t.realSr.mangaJaNaiPathsSubtitle),
+        trailing: TextButton(
+          onPressed: _editMangaJaNaiPaths,
+          child: Text(t.realSr.importModelAction),
+        ),
+      ),
+      _buildMangaJaNaiStatusTile(),
+      if (_mangaJaNaiMissing.isNotEmpty)
+        ListTile(
+          leading: Icon(
+            _installingEngine
+                ? Icons.downloading_outlined
+                : Icons.cloud_download_outlined,
+          ),
+          title: Text(t.realSr.mangaJaNaiOnlineInstall),
+          subtitle: Text(
+            _installStatusText ?? t.realSr.mangaJaNaiOnlineInstallSubtitle,
+          ),
+          trailing: _installingEngine
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : TextButton(
+                  onPressed: _installEngineOnline,
+                  child: Text(t.realSr.mangaJaNaiOnlineInstallAction),
+                ),
+        ),
+      // NVIDIA 的「CUDA - 系统内存回退策略」若保持默认，显存不足时会回退到
+      // 系统内存，超分速度差一个数量级。这是驱动侧设置，应用无法代劳，只能提示。
+      ListTile(
+        leading: const Icon(Icons.memory_outlined),
+        title: Text(t.realSr.mangaJaNaiNvidiaTitle),
+        subtitle: Text(t.realSr.mangaJaNaiNvidiaSubtitle),
+      ),
+    ];
+  }
+
+  /// 远程 MangaJaNai 服务端：调参 + 服务器配置 + 连接测试。
+  List<Widget> _buildRemoteMangaJaNaiItems() {
+    final warning = _buildRemoteWarningTile();
+    final ready = _remoteHealth != null;
+    return [
+      ..._buildMangaJaNaiTuningItems(),
+      ListTile(
+        leading: const Icon(Icons.dns_outlined),
+        title: Text(t.realSr.remoteConfig),
+        subtitle: Text(
+          _remoteBaseUrl.trim().isEmpty
+              ? t.realSr.remoteConfigSubtitle
+              : _remoteBaseUrl,
+        ),
+        trailing: TextButton(
+          onPressed: _editRemoteConfig,
+          child: Text(t.realSr.remoteConfigAction),
+        ),
+      ),
+      ListTile(
+        leading: _remoteTesting
+            ? const SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : Icon(
+                ready ? Icons.check_circle : Icons.error_outline,
+                color: ready ? Theme.of(context).colorScheme.primary : null,
+              ),
+        title: Text(ready ? t.realSr.remoteReady : t.realSr.remoteNotReady),
+        subtitle: Text(_remoteStatusLine),
+        trailing: TextButton(
+          onPressed: _remoteTesting ? null : _testRemoteConnection,
+          child: Text(t.realSr.remoteTest),
+        ),
+      ),
+      ?warning,
+    ];
   }
 
   /// MangaJaNai CLI 后端就绪状态瓦片。
@@ -820,9 +1066,13 @@ class _RealSrSettingPageState extends State<RealSrSettingPage> {
                   secondary: const Icon(Icons.auto_fix_high_outlined),
                   title: Text(t.realSr.autoUpscale),
                   subtitle: Text(
-                    !_isAvailable
-                        ? t.realSr.autoUpscaleSubtitleUnavailable
-                        : t.realSr.autoUpscaleSubtitleAvailable,
+                    // 不可用时的原因按引擎区分：远程模式下说「模型未下载」会
+                    // 把人引向下载本地模型，而真正的问题多半是服务端没连上。
+                    _isAvailable
+                        ? t.realSr.autoUpscaleSubtitleAvailable
+                        : _effectiveEngine.isRemote
+                        ? t.realSr.remoteNotReady
+                        : t.realSr.autoUpscaleSubtitleUnavailable,
                   ),
                   thumbIcon: kSettingSwitchThumbIcon,
                   value: _autoUpscale,
@@ -912,11 +1162,12 @@ class _RealSrSettingPageState extends State<RealSrSettingPage> {
                 settingSectionTitle(context, t.realSr.modelSection),
                 ..._buildModelItems(),
 
-                const SizedBox(height: 8),
-                const Divider(height: 1, thickness: 0.3),
-                settingSectionTitle(context, t.realSr.modelManagementSection),
-                // MangaJaNai 引擎使用本机 GUI 的模型，无需下载/导入内置模型。
+                // MangaJaNai 家族（本地 CLI 用 GUI/引擎包的模型，远程用服务端
+                // 自己的模型）都不需要下载或导入内置模型，整段隐藏。
                 if (!_useMangaJaNaiEngine) ...[
+                  const SizedBox(height: 8),
+                  const Divider(height: 1, thickness: 0.3),
+                  settingSectionTitle(context, t.realSr.modelManagementSection),
                   _buildModelManagementTile(),
                   _buildManualDownloadTile(),
                   _buildImportModelTile(),

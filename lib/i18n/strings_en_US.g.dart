@@ -1083,9 +1083,28 @@ class _Translations$realSr$en_US extends Translations$realSr$zh_CN {
 	@override String get coremlGeneralOption => 'General option (scale)';
 	@override String get coremlTileInfo => 'Tile info';
 	@override String get engine => 'Upscale Engine';
-	@override String get engineSubtitle => 'NCNN is built-in; MangaJaNai uses a locally installed MangaJaNaiConverterGui CLI backend';
+	@override String get engineSubtitle => 'NCNN is built-in; MangaJaNai can use a local CLI backend (Windows only) or a remote upscale server on your LAN';
 	@override String get engineNcnn => 'NCNN (built-in)';
 	@override String get engineMangaJaNai => 'MangaJaNai (local)';
+	@override String get engineMangaJaNaiRemote => 'MangaJaNai (remote)';
+	@override String get remoteSection => 'Remote Server';
+	@override String get remoteConfig => 'Server Settings';
+	@override String get remoteConfigSubtitle => 'Address and token must match the mjn-service running on your PC';
+	@override String get remoteConfigAction => 'Configure';
+	@override String get remoteBaseUrl => 'Server Address';
+	@override String get remoteBaseUrlHint => 'e.g. 192.168.1.100:8765';
+	@override String get remoteApiKey => 'Access Token';
+	@override String get remoteApiKeyHint => 'Matches MJN_API_KEY on the server; leave empty when auth is disabled';
+	@override String get remoteTest => 'Test Connection';
+	@override String get remoteTesting => 'Testing connection…';
+	@override String get remoteReady => 'Remote server ready';
+	@override String get remoteNotReady => 'Remote server unavailable';
+	@override String remoteStatusFormat({required Object device, required Object depth, required Object queueMax, required Object models}) => '${device} · queue ${depth}/${queueMax} · ${models} models loaded';
+	@override String get remoteTestSuccess => 'Connected';
+	@override String get remoteTestFailed => 'Connection failed';
+	@override String get remoteNotConfigured => 'Server address not configured';
+	@override String get remoteMissingModels => 'Server is missing models; some chains will degrade';
+	@override String get remoteCudaOff => 'CUDA is disabled on the server; upscaling will be very slow';
 	@override String get mangaJaNaiScale => 'Upscale Factor';
 	@override String get mangaJaNaiScaleSubtitle => 'Grayscale pages auto-pick models by height; color pages are routed automatically';
 	@override String get mangaJaNaiThreshold => 'Grayscale Threshold';
@@ -2447,9 +2466,28 @@ extension on TranslationsEnUs {
 			'realSr.coremlGeneralOption' => 'General option (scale)',
 			'realSr.coremlTileInfo' => 'Tile info',
 			'realSr.engine' => 'Upscale Engine',
-			'realSr.engineSubtitle' => 'NCNN is built-in; MangaJaNai uses a locally installed MangaJaNaiConverterGui CLI backend',
+			'realSr.engineSubtitle' => 'NCNN is built-in; MangaJaNai can use a local CLI backend (Windows only) or a remote upscale server on your LAN',
 			'realSr.engineNcnn' => 'NCNN (built-in)',
 			'realSr.engineMangaJaNai' => 'MangaJaNai (local)',
+			'realSr.engineMangaJaNaiRemote' => 'MangaJaNai (remote)',
+			'realSr.remoteSection' => 'Remote Server',
+			'realSr.remoteConfig' => 'Server Settings',
+			'realSr.remoteConfigSubtitle' => 'Address and token must match the mjn-service running on your PC',
+			'realSr.remoteConfigAction' => 'Configure',
+			'realSr.remoteBaseUrl' => 'Server Address',
+			'realSr.remoteBaseUrlHint' => 'e.g. 192.168.1.100:8765',
+			'realSr.remoteApiKey' => 'Access Token',
+			'realSr.remoteApiKeyHint' => 'Matches MJN_API_KEY on the server; leave empty when auth is disabled',
+			'realSr.remoteTest' => 'Test Connection',
+			'realSr.remoteTesting' => 'Testing connection…',
+			'realSr.remoteReady' => 'Remote server ready',
+			'realSr.remoteNotReady' => 'Remote server unavailable',
+			'realSr.remoteStatusFormat' => ({required Object device, required Object depth, required Object queueMax, required Object models}) => '${device} · queue ${depth}/${queueMax} · ${models} models loaded',
+			'realSr.remoteTestSuccess' => 'Connected',
+			'realSr.remoteTestFailed' => 'Connection failed',
+			'realSr.remoteNotConfigured' => 'Server address not configured',
+			'realSr.remoteMissingModels' => 'Server is missing models; some chains will degrade',
+			'realSr.remoteCudaOff' => 'CUDA is disabled on the server; upscaling will be very slow',
 			'realSr.mangaJaNaiScale' => 'Upscale Factor',
 			'realSr.mangaJaNaiScaleSubtitle' => 'Grayscale pages auto-pick models by height; color pages are routed automatically',
 			'realSr.mangaJaNaiThreshold' => 'Grayscale Threshold',
@@ -2577,6 +2615,8 @@ extension on TranslationsEnUs {
 			'search.resultCount' => ({required Object count}) => '${count} results',
 			'search.noResults' => 'No results',
 			'search.loadFailedForSource' => ({required Object source}) => 'Failed to load ${source}',
+			_ => null,
+		} ?? switch (path) {
 			'discover.title' => 'Discover',
 			'discover.search' => 'Search',
 			'discover.settings' => 'Settings',
@@ -2596,8 +2636,6 @@ extension on TranslationsEnUs {
 			'discover.pluginDebugLoadFailed' => ({required Object error}) => 'Plugin debug load failed, reverted to database: ${error}',
 			'searchResult.enterPageNumber' => 'Enter page number',
 			'searchResult.pleaseEnterNumber' => 'Please enter a number',
-			_ => null,
-		} ?? switch (path) {
 			'searchResult.returnToTop' => 'Return to top',
 			'searchResult.jumpToPage' => 'Jump to page',
 			'searchResult.jump' => 'Jump',

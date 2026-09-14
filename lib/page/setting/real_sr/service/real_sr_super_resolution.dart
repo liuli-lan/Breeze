@@ -8,12 +8,14 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:pool/pool.dart';
 import 'package:uuid/uuid.dart';
+import 'package:zephyr/i18n/strings.g.dart';
 import 'package:zephyr/main.dart';
 import 'package:zephyr/page/comic_info/method/export_comic.dart';
 import 'package:zephyr/page/setting/real_sr/service/android_ncnn_model_config.dart';
 import 'package:zephyr/page/setting/real_sr/service/desktop_ncnn_model_config.dart';
 import 'package:zephyr/page/setting/real_sr/service/mangajanai_batch.dart';
 import 'package:zephyr/page/setting/real_sr/service/mangajanai_engine.dart';
+import 'package:zephyr/page/setting/real_sr/service/mangajanai_remote.dart';
 import 'package:zephyr/page/setting/real_sr/service/real_sr_settings.dart';
 import 'package:zephyr/src/rust/api/image.dart';
 import 'package:zephyr/src/rust/api/simple.dart';
@@ -73,13 +75,34 @@ class RealSrSuperResolution {
 
   /// 当前设备是否支持内置超分（包含模型/可执行文件是否已就绪）。
   ///
+  /// 先看用户选定的引擎，再看平台：
+  /// - 远程 MangaJaNai：探活局域网服务端（任意平台可用）
+  /// - 本地 MangaJaNai：检查本机 CLI 后端与模型，仅 Windows
   /// - Android：arm64-v8a 且 NCNN 模型已下载并解压
   /// - iOS / macOS：CoreML 模型已下载并解压
   /// - Windows / Linux：存在对应平台的 realcugan-ncnn-vulkan 可执行文件
   static Future<bool> get isAvailable async {
+    final engine = await RealSrSettings.loadSrEngine();
+
+    // 远程服务端与平台无关；探活带 30s 缓存，热路径上开销可忽略。
+    if (engine.isRemote) {
+      return MangaJaNaiRemoteEngine.isAvailable;
+    }
+
+    // 本地 MangaJaNai CLI 后端仅 Windows 有安装约定。非 Windows 上该枚举项
+    // 不会出现在设置页，但配置可能被同步/迁移过来，这里兜底拒绝。
+    if (engine.isLocalCli) {
+      return Platform.isWindows && await MangaJaNaiEngine.isAvailable;
+    }
+
     if (Platform.isAndroid) {
       try {
-        if (!await isDeviceSupported) return false;
+        // 内置 NCNN 需要 arm64-v8a（bundled 的 waifu2x CLI 只打包了该 ABI）。
+        //
+        // 这里刻意不用 isDeviceSupported —— 那个判断的语义是「要不要展示超分设置
+        // 入口」，已放宽成「Android 恒 true」（好让非 arm64 设备也能进去配置远程
+        // 服务器）。拿它当 NCNN 的可用性门槛，会让入口的放宽失去意义。
+        if (!await _isAndroidNcnnDeviceSupported) return false;
         return await _isAndroidNcnnAvailable(
           variant: AndroidNcnnModelConfig.variantFor(
             mode: AndroidNcnnModelConfig.defaultMode,
@@ -96,13 +119,6 @@ class RealSrSuperResolution {
     }
 
     if (Platform.isWindows || Platform.isLinux) {
-      // Windows 可切换到本地 MangaJaNai 引擎，此时不检查 NCNN 模型。
-      if (Platform.isWindows &&
-          await RealSrSettings.loadDesktopEngine() ==
-              DesktopSrEngine.mangaJaNai) {
-        return MangaJaNaiEngine.isAvailable;
-      }
-
       final modelRoot = await _modelDirectory;
       final mode = await RealSrSettings.loadDesktopNcnnMode();
       final exeName = DesktopNcnnModelConfig.executableNameFor(mode);
@@ -112,27 +128,34 @@ class RealSrSuperResolution {
     return false;
   }
 
-  /// 当前设备平台是否支持超分（不检查模型是否已下载）。
+  /// 当前平台是否提供超分能力，用于决定设置页入口是否显示。
   ///
-  /// 用于在设置页显示入口；Android 仅要求 arm64-v8a，其他平台默认支持。
+  /// **不检查模型是否就绪**，只回答「这个平台上有没有超分这回事」。
+  ///
+  /// Android 上恒为 true：原先的「必须 arm64-v8a」门槛只对内置 NCNN 成立，
+  /// 而远程引擎把算力放在服务端、与本机架构无关。继续拿 CPU 架构当入口门槛，
+  /// 会让 32 位设备连「配置远程服务器」的入口都看不到（进不去设置页就无从切换
+  /// 引擎，等于把远程这条路彻底堵死）。非 arm64 设备上内置 NCNN 不可用的情况，
+  /// 由 [isAvailable] 表达，并在设置页里以「不可用」提示呈现。
   static Future<bool> get isDeviceSupported async {
-    if (Platform.isAndroid) {
-      try {
-        final androidInfo = await DeviceInfoPlugin().androidInfo;
-        return androidInfo.supportedAbis.contains('arm64-v8a');
-      } catch (_) {
-        return false;
-      }
-    }
-
-    if (Platform.isIOS ||
+    return Platform.isAndroid ||
+        Platform.isIOS ||
         Platform.isMacOS ||
         Platform.isWindows ||
-        Platform.isLinux) {
-      return true;
-    }
+        Platform.isLinux;
+  }
 
-    return false;
+  /// Android 设备是否支持内置 NCNN 超分（需要 arm64-v8a）。
+  ///
+  /// bundled 的 waifu2x CLI 只提供 arm64-v8a 版本，非该 ABI 的设备上
+  /// `nativeLibraryDir` 里找不到可执行文件。
+  static Future<bool> get _isAndroidNcnnDeviceSupported async {
+    try {
+      final androidInfo = await DeviceInfoPlugin().androidInfo;
+      return androidInfo.supportedAbis.contains('arm64-v8a');
+    } catch (_) {
+      return false;
+    }
   }
 
   /// 检查 Android NCNN 模型是否已就绪。
@@ -596,10 +619,13 @@ class RealSrSuperResolution {
       return;
     }
 
+    final engine = await RealSrSettings.loadSrEngine();
+
     if (!await isAvailable) {
       if (!_missingModelNotified) {
         _missingModelNotified = true;
-        showErrorToast('模型不完整');
+        // 远程模式下「模型不完整」的说法会误导：缺的是服务端连通性/配置。
+        showErrorToast(engine.isRemote ? t.realSr.remoteNotReady : '模型不完整');
       }
       return;
     }
@@ -607,6 +633,19 @@ class RealSrSuperResolution {
     final threshold = await RealSrSettings.loadResolutionThreshold();
     if (!await shouldUpscale(inputPath, threshold: threshold)) {
       logger.d('Input $inputPath does not need to be upscaled.');
+      return;
+    }
+
+    // 远程引擎：走独立路径，直接发原始编码。
+    //
+    // 两处刻意与本地路径不同：
+    // - **不转 PNG**：本地 CLI 需要 PNG，而服务端 pyvips 按内容识别格式，
+    //   转 PNG 只会让上传体积涨 3-5 倍（PLAN §5.4）。
+    // - **不进 MangaJaNaiBatchScheduler**：攒批是为「本地 CLI 每次调用都要付
+    //   Python/torch 冷启动」设计的；服务端常驻且自带两通道调度，攒批只会
+    //   平白增加延迟。
+    if (engine.isRemote) {
+      await _upscaleRemote(inputPath);
       return;
     }
 
@@ -647,12 +686,10 @@ class RealSrSuperResolution {
       return;
     }
 
-    // Windows / Linux：根据引擎选择走 MangaJaNai 或 NCNN CLI。
+    // Windows / Linux：根据引擎选择走本地 MangaJaNai 或 NCNN CLI。
+    // （远程引擎已在上面提前返回。）
     if (Platform.isWindows || Platform.isLinux) {
-      final useMangaJaNai =
-          Platform.isWindows &&
-          await RealSrSettings.loadDesktopEngine() ==
-              DesktopSrEngine.mangaJaNai;
+      final useMangaJaNai = engine.isLocalCli;
 
       if (useMangaJaNai) {
         // MangaJaNai 走批量调度器：短时间窗内到达的图片攒成一批后，由单次 CLI
@@ -712,6 +749,55 @@ class RealSrSuperResolution {
   /// 实现"先显示原图、超分完成后无感热替换"。
   static void _notifyUpscaled(String path) {
     eventBus.fire(ImageUpscaledEvent(path));
+  }
+
+  /// 远程 MangaJaNai 超分：把原图交给局域网内的 mjn-service，结果覆盖回原路径。
+  ///
+  /// 直接在**原路径**上覆盖（而非另存）是刻意的：与本地路径行为一致，
+  /// 阅读器不需要知道超分发生过，覆盖后靠 [ImageUpscaledEvent] 热替换即可。
+  ///
+  /// 结果文件是 WebP，但覆盖到 `.jpg` 之类的原路径上不会出问题 ——
+  /// Breeze 侧一律按文件头识别格式（[_detectUpscalableExtension]），不看扩展名。
+  static Future<void> _upscaleRemote(String inputPath) async {
+    final scale = await RealSrSettings.loadMangaJaNaiScale();
+    final threshold = await RealSrSettings.loadMangaJaNaiGrayscaleThreshold();
+    final cachePath = await getCachePath();
+    final tempOutput = p.join(
+      cachePath,
+      'mjn_remote_${const Uuid().v4()}.webp',
+    );
+
+    try {
+      await MangaJaNaiRemoteEngine.upscale(
+        inputPath: inputPath,
+        outputPath: tempOutput,
+        scale: scale,
+        grayscaleThreshold: threshold,
+      );
+      await _replaceFile(tempOutput, inputPath);
+      _notifyUpscaled(inputPath);
+    } finally {
+      try {
+        final temp = File(tempOutput);
+        if (temp.existsSync()) {
+          await temp.delete();
+        }
+      } catch (_) {}
+    }
+  }
+
+  /// 把 [from] 覆盖到 [to]。
+  ///
+  /// Windows 上目标已存在时 rename 会失败，跨卷时同样失败，因此退回复制
+  /// （`File.copy` 会覆盖已存在的目标）。
+  static Future<void> _replaceFile(String from, String to) async {
+    final src = File(from);
+    try {
+      await src.rename(to);
+    } on FileSystemException {
+      await src.copy(to);
+      await src.delete();
+    }
   }
 
   /// 对单张图片做超分放大。
