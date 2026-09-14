@@ -54,7 +54,29 @@ class _ReadImageWidgetState extends State<ReadImageWidget> {
     );
 
     return BlocProvider(
-      create: (context) => PictureBloc()..add(GetPicture(pictureInfoTemp)),
+      create: (context) {
+        // 本会话已解析过的图片直接同步起步，首帧即图。
+        //
+        // 图片组件随 PageView / ListView 的视口进出被反复销毁重建（翻页翻一半
+        // 滑回去再滑回来必然重建），若无此捷径，每次重挂载都要新建 bloc 走一遍
+        // 异步加载——即使磁盘缓存命中也要等文件系统 IO，期间会闪出占位符。
+        final cachedPath = PicturePathMemoryCache.lookup(
+          from: pictureInfoTemp.from,
+          path: pictureInfoTemp.path,
+          cartoonId: pictureInfoTemp.cartoonId,
+          chapterId: pictureInfoTemp.chapterId,
+          pictureType: pictureInfoTemp.pictureType,
+        );
+        if (cachedPath != null) {
+          return PictureBloc(
+            initialState: PictureLoadState(
+              status: PictureLoadStatus.success,
+              imagePath: cachedPath,
+            ),
+          );
+        }
+        return PictureBloc()..add(GetPicture(pictureInfoTemp));
+      },
       child: SizedBox(
         width: context.screenWidth,
         child: BlocBuilder<PictureBloc, PictureLoadState>(

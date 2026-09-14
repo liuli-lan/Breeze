@@ -16,6 +16,7 @@ import 'package:zephyr/src/rust/api/simple.dart';
 import 'package:zephyr/src/rust/decode/decode.dart';
 import 'package:zephyr/util/event/image_upscaled_event.dart';
 import 'package:zephyr/util/get_path.dart';
+import 'package:zephyr/widgets/picture_bloc/bloc/picture_path_cache.dart';
 
 export 'package:zephyr/service/download/download_asset_store.dart'
     show normalizeStoredAssetPath;
@@ -49,12 +50,26 @@ Future<String> getCachePicture({
   }
   if (url.contains("nopic-Male.gif")) return "nopic-Male.gif";
 
+  // 成功解析出本地路径时登记到进程内缓存：阅读页的图片组件随视口进出被反复
+  // 销毁重建，重建方靠这张同步表「首帧直接出图」，不必每次都异步走一遍加载。
+  void rememberResolved(String resolvedPath) => PicturePathMemoryCache.remember(
+    from: from,
+    path: path,
+    cartoonId: cartoonId,
+    chapterId: chapterId,
+    pictureType: pictureType,
+    resolvedPath: resolvedPath,
+  );
+
   final directPath = path.trim();
   if (directPath.isNotEmpty && file_path.isAbsolute(directPath)) {
     final directFile = File(directPath);
     if (await directFile.exists()) {
       try {
-        if (await directFile.length() > 0) return directPath;
+        if (await directFile.length() > 0) {
+          rememberResolved(directPath);
+          return directPath;
+        }
       } catch (_) {}
     }
     return '404';
@@ -78,6 +93,7 @@ Future<String> getCachePicture({
       if (pictureType == PictureType.page && applyRealSr) {
         await _processRealSr(existing.path, waitForRealSr: waitForRealSr);
       }
+      rememberResolved(existing.path);
       return existing.path;
     } catch (e) {
       logger.w(
@@ -140,6 +156,7 @@ Future<String> getCachePicture({
       if (pictureType == PictureType.page && applyRealSr) {
         await _processRealSr(newCacheFilePath, waitForRealSr: waitForRealSr);
       }
+      rememberResolved(newCacheFilePath);
       return newCacheFilePath;
     } else {
       throw Exception('图片保存失败');
@@ -156,6 +173,7 @@ Future<String> getCachePicture({
     if (pictureType == PictureType.page && applyRealSr) {
       await _processRealSr(newCacheFilePath, waitForRealSr: waitForRealSr);
     }
+    rememberResolved(newCacheFilePath);
     return newCacheFilePath;
   } else {
     throw Exception('图片保存失败');
