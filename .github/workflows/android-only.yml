@@ -1,0 +1,152 @@
+name: Breeze Android Build (fork, android only)
+
+# 从上游 release.yml 的 build-android job 抽出来，只跑 Android。
+#
+# 与上游的差别：
+#   1. 不依赖 GIT_CRYPT_KEY —— android/key.properties 与 keystore 是 git-crypt 加密的，
+#      本 fork 没有密钥，改为「删掉加密的 key.properties + 把 release 签名指向 debug key」。
+#      产出的 APK 可以正常安装，但**签名与官方版不同**：手机上若已装官方签名的 Breeze，
+#      必须先卸载才能装（应用内收藏/历史/插件会丢）。
+#   2. 不上传 Sentry 符号表（没有 SENTRY_AUTH_TOKEN，build_apk.dart 会退化成空 DSN，不影响构建）。
+#   3. 只手动触发，避免每次 push 都跑一次 40~60 分钟的 Android 构建。
+#
+# 触发方式：Actions 页面点 “Run workflow”，或
+#   gh workflow run android-only.yml --repo liuli-lan/Breeze --ref mangajanai-win
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: 释放空间 (Nuclear Mode)
+        run: |
+          sudo rm -rf /opt/hostedtoolcache /usr/local/lib/android /usr/share/dotnet /opt/codeql
+          sudo mkdir -p /usr/local/lib/android/sdk
+          sudo chown -R $USER:$USER /usr/local/lib/android
+          docker system prune -a -f || true
+          sudo apt-get clean
+
+      - name: 改用 debug 签名（跳过 git-crypt 加密的 keystore）
+        run: |
+          rm -f android/key.properties
+          perl -pi -e 's/signingConfig = signingConfigs\["release"\]/signingConfig = signingConfigs["debug"]/' android/app/build.gradle.kts
+          echo "--- 补丁后的签名相关行 ---"
+          grep -n 'signingConfig' android/app/build.gradle.kts | head
+          if grep -q 'signingConfig = signingConfigs\["release"\]' android/app/build.gradle.kts; then
+            echo "::error::签名补丁未生效，release 仍指向缺失的 keystore"
+            exit 1
+          fi
+
+      - name: 设置 Java 21 & SDK
+        uses: actions/setup-java@v5
+        with:
+          distribution: "temurin"
+          java-version: "21"
+          cache: "gradle"
+
+      - name: 设置 Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: 设置 Dart SDK
+        uses: dart-lang/setup-dart@v1
+
+      - name: 设置 Flutter (FVM)
+        run: |
+          dart pub global activate fvm
+          echo "$HOME/.pub-cache/bin" >> $GITHUB_PATH
+          export PATH="$PATH:$HOME/.pub-cache/bin"
+          fvm install && fvm use --force
+          echo "$GITHUB_WORKSPACE/.fvm/flutter_sdk/bin" >> $GITHUB_PATH
+
+      - name: 安装 Rust (Android 目标)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android, armv7-linux-androideabi, x86_64-linux-android
+
+      - name: 缓存 Rust 构建产物
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            rust
+
+      - name: 读取 NDK 版本配置
+        id: ndk-config
+        run: |
+          NDK_VER=$(grep "ndkVersion" android/app/build.gradle.kts | awk -F'"' '{print $2}')
+          echo "ndk_version=$NDK_VER" >> $GITHUB_OUTPUT
+
+      - name: 缓存 Android NDK
+        uses: actions/cache@v5
+        with:
+          path: /usr/local/lib/android/sdk/ndk/${{ steps.ndk-config.outputs.ndk_version }}
+          key: ${{ runner.os }}-android-ndk-${{ steps.ndk-config.outputs.ndk_version }}
+
+      - name: 安装 Android NDK
+        run: yes | sdkmanager "ndk;${{ steps.ndk-config.outputs.ndk_version }}"
+
+      - name: 安装 Android CMake
+        run: yes | sdkmanager "cmake;3.22.1"
+
+      - name: 设置 NDK 环境变量
+        run: |
+          NDK_VER=${{ steps.ndk-config.outputs.ndk_version }}
+          ANDROID_HOME=${ANDROID_HOME:-$ANDROID_SDK_ROOT}
+          NDK_PATH="$ANDROID_HOME/ndk/$NDK_VER"
+          echo "ANDROID_NDK_HOME=$NDK_PATH" >> $GITHUB_ENV
+          echo "ANDROID_NDK_ROOT=$NDK_PATH" >> $GITHUB_ENV
+          echo "$NDK_PATH/toolchains/llvm/prebuilt/linux-x86_64/bin" >> $GITHUB_PATH
+
+      - name: 接受 Android Licenses
+        run: yes | fvm flutter doctor --android-licenses || true
+
+      - name: 拉取 Flutter 依赖
+        run: fvm flutter pub get
+
+      - name: 缓存 Android waifu2x CLI 依赖
+        uses: actions/cache@v5
+        with:
+          path: third_party/android_ncnn_deps
+          key: ${{ runner.os }}-android-waifu2x-deps-${{ hashFiles('script/prepare_android_waifu2x_deps.py', 'script/build_ncnn_static_android.py', 'script/build_waifu2x_cli_android.py', 'android/app/src/main/cpp/waifu2x_cli/CMakeLists.txt') }}
+
+      - name: 缓存 ncnn 源码
+        uses: actions/cache@v5
+        with:
+          path: third_party/ncnn-src
+          key: ${{ runner.os }}-android-ncnn-src-${{ hashFiles('script/build_ncnn_static_android.py') }}
+
+      - name: 缓存 RealSR-NCNN-Android 源码
+        uses: actions/cache@v5
+        with:
+          path: third_party/RealSR-NCNN-Android
+          key: ${{ runner.os }}-android-realsr-src-${{ hashFiles('script/build_waifu2x_cli_android.py') }}
+
+      - name: 准备 Android waifu2x CLI 依赖
+        run: python3 script/prepare_android_waifu2x_deps.py
+
+      - name: 编译 Android 静态 ncnn
+        run: python3 script/build_ncnn_static_android.py
+
+      - name: 编译 Android waifu2x CLI
+        run: python3 script/build_waifu2x_cli_android.py
+
+      - name: 运行 Android 构建脚本
+        env:
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+        run: fvm dart ./script/build_apk.dart
+
+      - name: 上传 Android 产物
+        uses: actions/upload-artifact@v6
+        with:
+          name: android-apks
+          path: |
+            build/app/outputs/flutter-apk/*.apk
+            build/app/outputs/apk/skia/*.apk
