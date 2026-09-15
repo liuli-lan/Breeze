@@ -118,6 +118,11 @@ Future<void> main(List<String> args) async {
   // 1. 基础初始化
   WidgetsFlutterBinding.ensureInitialized();
 
+  // 图片解码缓存默认只有 100MiB：超分后的 2x 图解码位图动辄 20MB+，
+  // 翻几页就把可视页挤出缓存，回看时被迫重新异步解码——阅读页表现为
+  // 翻回/滑回时闪一下占位。调到约 300MiB（手机约容 12 张 2x 图）。
+  PaintingBinding.instance.imageCache.maximumSizeBytes = 300 << 20;
+
   // 先生成本地同步设备 ID，后续文件夹/链接的版本向量会使用它
   await ensureSyncDeviceId();
 

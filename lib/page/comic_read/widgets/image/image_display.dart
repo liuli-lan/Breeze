@@ -51,6 +51,15 @@ class ImageDisplay extends StatefulWidget {
 }
 
 class _ImageDisplayState extends State<ImageDisplay> {
+  /// 图片内容版本号，**按路径全局**而非放在 State 里。
+  ///
+  /// 超分原地覆盖文件后递增，驱动 [RevisionFileImage] 重新解码。之所以必须全局：
+  /// 图片组件随视口进出被销毁重建，State 的 revision 会归零；而 imageCache 里的
+  /// 条目是「超分后递增过的 revision」，归零的 key 必然 miss → 重挂载被迫重新
+  /// 异步解码，表现为每次翻回/滑回都闪一下占位符。全局表让重建的实例直接拿到
+  /// 当前 revision，命中已有缓存条目、同步出图。
+  static final Map<String, int> _imageRevisions = <String, int>{};
+
   ImageStream? _imageStream;
   ImageStreamListener? _imageListener;
   Timer? _einkDelayTimer;
@@ -60,9 +69,6 @@ class _ImageDisplayState extends State<ImageDisplay> {
   double? _rawHeight;
   bool _einkDelayFinished = true;
   bool _wasRowActive = false;
-
-  /// 图片内容版本号：超分原地覆盖文件后递增，驱动重新解码。
-  int _imageRevision = 0;
 
   bool get isColumn => widget.isColumn;
 
@@ -79,14 +85,15 @@ class _ImageDisplayState extends State<ImageDisplay> {
   /// 超分完成：文件路径不变、内容已覆盖为高清版。
   ///
   /// [FileImage] 的相等性只比较路径与 scale，必须 evict 旧缓存条目，
-  /// 否则永远命中旧图；[RevisionFileImage] 的 revision 让 provider
-  /// 不再相等，配合 gaplessPlayback 在新帧解码完成前保留旧画面。
+  /// 否则永远命中旧图；revision 递增（全局表）让 provider 不再相等，
+  /// 配合 gaplessPlayback 在新帧解码完成前保留旧画面。
   void _onImageUpscaled(ImageUpscaledEvent event) {
     if (!mounted || event.path != widget.imagePath) return;
 
     final file = File(event.path);
+    final oldRevision = _imageRevisions[event.path] ?? 0;
     PaintingBinding.instance.imageCache.evict(
-      RevisionFileImage(file, revision: _imageRevision),
+      RevisionFileImage(file, revision: oldRevision),
     );
     // 全屏查看页用普通 FileImage，key 空间不同，一并清除其缓存条目
     // （全屏页不会自动刷新，但重开时即可读到高清版）。
@@ -96,7 +103,7 @@ class _ImageDisplayState extends State<ImageDisplay> {
     setState(() {
       _rawWidth = null;
       _rawHeight = null;
-      _imageRevision++;
+      _imageRevisions[event.path] = oldRevision + 1;
     });
     _resolveImageMeta();
   }
@@ -152,7 +159,7 @@ class _ImageDisplayState extends State<ImageDisplay> {
   void _resolveImageMeta() {
     final imageProvider = RevisionFileImage(
       File(widget.imagePath),
-      revision: _imageRevision,
+      revision: _imageRevisions[widget.imagePath] ?? 0,
     );
     final newStream = imageProvider.resolve(ImageConfiguration.empty);
 
@@ -264,7 +271,7 @@ class _ImageDisplayState extends State<ImageDisplay> {
           child: Image(
             image: RevisionFileImage(
               File(widget.imagePath),
-              revision: _imageRevision,
+              revision: _imageRevisions[widget.imagePath] ?? 0,
             ),
             width: width,
             fit: isColumn ? BoxFit.fill : BoxFit.contain,
