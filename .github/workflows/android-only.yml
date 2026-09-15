@@ -55,6 +55,12 @@ jobs:
 
       - name: 设置 Android SDK
         uses: android-actions/setup-android@v4
+        # 2026-09-15 起 runner 镜像的 cmdline-tools 20.0 对已弃用的 'tools' 包
+        # 报错（Failed to find package 'tools'），导致本步骤失败、整个构建中断。
+        # runner 本身预装了 Android SDK（ANDROID_HOME 已设好），本步骤的价值主要
+        # 是接受许可证的快捷方式；后面还有独立的「接受 Android Licenses」步骤
+        # 与按需 sdkmanager 安装 NDK/CMake 的步骤兜底，因此允许它失败继续。
+        continue-on-error: true
 
       - name: 设置 Dart SDK
         uses: dart-lang/setup-dart@v1
