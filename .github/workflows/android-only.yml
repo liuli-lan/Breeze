@@ -96,11 +96,19 @@ jobs:
           path: /usr/local/lib/android/sdk/ndk/${{ steps.ndk-config.outputs.ndk_version }}
           key: ${{ runner.os }}-android-ndk-${{ steps.ndk-config.outputs.ndk_version }}
 
+      # cmdline-tools 20.0 时代 setup-android 失败后不再配置 PATH，
+      # 这里用绝对路径（glob 兼容版本目录名变化）直接调用 sdkmanager。
       - name: 安装 Android NDK
-        run: yes | sdkmanager "ndk;${{ steps.ndk-config.outputs.ndk_version }}"
+        run: |
+          SDKM=$(ls /usr/local/lib/android/sdk/cmdline-tools/*/bin/sdkmanager 2>/dev/null | head -1)
+          echo "sdkmanager=${SDKM}"
+          [ -n "$SDKM" ] || { echo "::error::sdkmanager not found"; exit 1; }
+          yes | "$SDKM" "ndk;${{ steps.ndk-config.outputs.ndk_version }}"
 
       - name: 安装 Android CMake
-        run: yes | sdkmanager "cmake;3.22.1"
+        run: |
+          SDKM=$(ls /usr/local/lib/android/sdk/cmdline-tools/*/bin/sdkmanager 2>/dev/null | head -1)
+          yes | "$SDKM" "cmake;3.22.1"
 
       - name: 设置 NDK 环境变量
         run: |
