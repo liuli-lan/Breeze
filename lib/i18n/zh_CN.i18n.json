@@ -953,7 +953,16 @@
     "mangaJaNaiInstallStageModels": "正在下载模型包…",
     "mangaJaNaiInstallDone": "MangaJaNai 引擎安装完成",
     "mangaJaNaiInstallFailed": "MangaJaNai 引擎安装失败",
-    "mangaJaNaiPathHint": "默认：$path"
+    "mangaJaNaiPathHint": "默认：$path",
+    "mangaJaNaiService": "本机常驻超分服务",
+    "mangaJaNaiServiceSubtitle": "服务常驻内存与显存，超分固定开销只付一次",
+    "mangaJaNaiServiceReady": "常驻服务已就绪",
+    "mangaJaNaiServiceNotReady": "常驻服务未就绪",
+    "mangaJaNaiServiceStarting": "正在启动常驻服务…",
+    "mangaJaNaiServiceUnknown": "尚未检测",
+    "mangaJaNaiServiceCheck": "检测 / 启动",
+    "mangaJaNaiServiceStatusFormat": "$device · 已加载 $models 个模型 · $extra",
+    "mangaJaNaiServiceFallbackHint": "未就绪时会自动回退到 CLI 路径：功能不受影响，只是每页约 6 秒而不是约 1.2 秒"
   },
   "about": {
     "title": "关于应用",

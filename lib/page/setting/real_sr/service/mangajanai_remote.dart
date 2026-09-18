@@ -259,14 +259,20 @@ class MangaJaNaiRemoteEngine {
   ///
   /// [inputPath] 直接以**原始编码**上传（JPEG / PNG / WebP 均可），
   /// 不做任何转码 —— 见类文档第 1 条。
+  ///
+  /// [baseUrlOverride] 用于**本机常驻服务**：地址固定 `127.0.0.1`，不该读用户配置的
+  /// 远程地址，也**不发送**远程 Token（本机服务按设计不开鉴权，多发一个 Key 无意义）。
+  /// 同一份服务端代码跑在两种宿主上，所以请求格式完全一致 —— 这才是能复用的原因。
   static Future<void> upscale({
     required String inputPath,
     required String outputPath,
     required int scale,
     required int grayscaleThreshold,
     int quality = 90,
+    String? baseUrlOverride,
   }) async {
-    final baseUrl = await configuredBaseUrl();
+    final isLocal = baseUrlOverride != null;
+    final baseUrl = baseUrlOverride ?? await configuredBaseUrl();
     if (baseUrl == null) {
       throw const MangaJaNaiRemoteException('未配置远程服务器地址');
     }
@@ -290,7 +296,7 @@ class MangaJaNaiRemoteEngine {
             '$baseUrl/v1/upscale',
             method: 'POST',
             headers: {
-              ...await _headers(),
+              if (!isLocal) ...await _headers(),
               'Content-Type': 'application/octet-stream',
             },
             query: {

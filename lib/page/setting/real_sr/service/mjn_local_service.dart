@@ -151,6 +151,12 @@ class MjnLocalService {
   bool _stopping = false;
   Timer? _restartTimer;
 
+  /// 本次进程生命周期内是否已经真正尝试过启动。
+  ///
+  /// 见 [ensureStarted] 的 [force] 说明：没有这个守卫，一个起不来的服务会在
+  /// 热路径（每张图之前）被反复重试。
+  bool _startAttempted = false;
+
   /// 进行中的启动流程。并发调用 [ensureStarted] 时复用它，避免拉起两个实例。
   Future<MjnServiceStatus>? _pendingStart;
 
@@ -191,13 +197,29 @@ class MjnLocalService {
   /// 2. **先探端口**：若已有可用实例，直接复用 —— 不白拉一个必然因端口冲突而退出的进程；
   /// 3. 释放服务代码到 `<files>/mangajanai/service/`；
   /// 4. 拉起进程并等 `/v1/health` 就绪。
-  Future<MjnServiceStatus> ensureStarted() {
+  ///
+  /// [force] 为 false 时，**本次进程生命周期内只真正尝试一次**：失败过就直接返回上次结论。
+  /// 这个守卫是必需的 —— 超分主流程会在每张图之前问一次可用性，若无条件重试，
+  /// 一个起不来的服务会让每张图都白付一遍「探端口 + 释放资产 + 拉起进程」的成本。
+  /// 用户在设置页主动点击/重进页面时才传 `force: true` 重试。
+  Future<MjnServiceStatus> ensureStarted({bool force = false}) {
+    if (!force && _startAttempted && !isReady) return Future.value(status);
+
     final pending = _pendingStart;
     if (pending != null) return pending;
 
+    _startAttempted = true;
     final future = _ensureStarted();
     _pendingStart = future;
     return future.whenComplete(() => _pendingStart = null);
+  }
+
+  /// 后台启动一次（不等待结果）。
+  ///
+  /// 给超分主流程用：服务还没就绪时**让本次仍走 CLI 路径**（功能不中断），
+  /// 同时把服务在后台拉起来，后续图片就能用上它。这样首张图不会被启动延迟拖慢。
+  void requestStartInBackground({bool force = false}) {
+    unawaited(ensureStarted(force: force));
   }
 
   Future<MjnServiceStatus> _ensureStarted() async {
@@ -257,6 +279,7 @@ class MjnLocalService {
     _message = null;
     _health = null;
     _consecutiveFailures = 0;
+    _startAttempted = false;
     _stopping = false;
   }
 

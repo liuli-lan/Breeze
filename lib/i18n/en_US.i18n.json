@@ -952,7 +952,16 @@
     "mangaJaNaiInstallStageModels": "Downloading model packages…",
     "mangaJaNaiInstallDone": "MangaJaNai engine installed",
     "mangaJaNaiInstallFailed": "MangaJaNai engine installation failed",
-    "mangaJaNaiPathHint": "Default: $path"
+    "mangaJaNaiPathHint": "Default: $path",
+    "mangaJaNaiService": "Local resident upscaling service",
+    "mangaJaNaiServiceSubtitle": "Keeps the runtime and models in memory, so the fixed cost is paid once",
+    "mangaJaNaiServiceReady": "Resident service ready",
+    "mangaJaNaiServiceNotReady": "Resident service not ready",
+    "mangaJaNaiServiceStarting": "Starting resident service…",
+    "mangaJaNaiServiceUnknown": "Not checked yet",
+    "mangaJaNaiServiceCheck": "Check / Start",
+    "mangaJaNaiServiceStatusFormat": "$device · $models models loaded · $extra",
+    "mangaJaNaiServiceFallbackHint": "When not ready it falls back to the CLI path automatically: still works, just ~6 s per page instead of ~1.2 s"
   },
   "about": {
     "title": "About app",

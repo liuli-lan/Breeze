@@ -16,6 +16,7 @@ import 'package:zephyr/page/setting/real_sr/service/desktop_ncnn_model_config.da
 import 'package:zephyr/page/setting/real_sr/service/mangajanai_batch.dart';
 import 'package:zephyr/page/setting/real_sr/service/mangajanai_engine.dart';
 import 'package:zephyr/page/setting/real_sr/service/mangajanai_remote.dart';
+import 'package:zephyr/page/setting/real_sr/service/mjn_local_service.dart';
 import 'package:zephyr/page/setting/real_sr/service/real_sr_settings.dart';
 import 'package:zephyr/src/rust/api/image.dart';
 import 'package:zephyr/src/rust/api/simple.dart';
@@ -92,7 +93,20 @@ class RealSrSuperResolution {
     // 本地 MangaJaNai CLI 后端仅 Windows 有安装约定。非 Windows 上该枚举项
     // 不会出现在设置页，但配置可能被同步/迁移过来，这里兜底拒绝。
     if (engine.isLocalCli) {
-      return Platform.isWindows && await MangaJaNaiEngine.isAvailable;
+      if (!Platform.isWindows) return false;
+
+      // 优先看**本机常驻服务**是否就绪：就绪时它比 CLI 路径快约 5 倍
+      // （实测单页 1.19 s vs 5.79~6.02 s）。
+      //
+      // 这里刻意**只读状态、不触发启动**：本方法在每张图超分前都会被调用，
+      // 在这里启动服务会让首个请求白等一次进程拉起，失败时更会反复重试。
+      // 启动时机交给设置页（主动）与超分主流程（后台预热），见 requestStartInBackground。
+      if (MjnLocalService.instance.isReady) return true;
+
+      // 回退：CLI 路径就绪也算可用。
+      // **这条回退是必须的** —— 服务可能因为端口冲突、Python 异常、崩溃超限等原因
+      // 起不来，此时超分能力不应该整个消失，只是退回原来的速度。
+      return MangaJaNaiEngine.isAvailable;
     }
 
     if (Platform.isAndroid) {
@@ -692,6 +706,29 @@ class RealSrSuperResolution {
       final useMangaJaNai = engine.isLocalCli;
 
       if (useMangaJaNai) {
+        // ① 本机常驻服务已就绪 → 走它。这是主路径：服务把 torch 与模型常驻显存，
+        //    固定成本只付一次（单页实测约 1.19 s，而 CLI 每次 spawn 要 5.79~6.02 s）。
+        final service = MjnLocalService.instance;
+        if (Platform.isWindows && service.isReady) {
+          try {
+            await _upscaleLocalService(inputPath);
+            return;
+          } catch (e, s) {
+            // 服务中途挂掉（崩溃、看门狗重启、端口被抢）不该让这张图白丢 ——
+            // 救回 CLI 路径重试一次。代价是这张图慢（约 6 s），但结果保住了。
+            logger.w(
+              '本机服务超分失败，回退 CLI 路径重试: $inputPath',
+              error: e,
+              stackTrace: s,
+            );
+            service.requestStartInBackground(force: true);
+          }
+        } else if (Platform.isWindows) {
+          // ② 服务还没就绪 → **本次仍走 CLI**（不让首张图白等一次进程启动），
+          //    同时在后台把服务拉起来，后续图片就能用上它。
+          service.requestStartInBackground();
+        }
+
         // MangaJaNai 走批量调度器：短时间窗内到达的图片攒成一批后，由单次 CLI
         // 调用处理整批，模型只加载一次；调度器串行执行，即单线程，不会出现多个
         // Python 进程争抢 GPU。超分与 WebP 转换均在调度器内完成，此处直接返回，
@@ -773,6 +810,45 @@ class RealSrSuperResolution {
         outputPath: tempOutput,
         scale: scale,
         grayscaleThreshold: threshold,
+      );
+      await _replaceFile(tempOutput, inputPath);
+      _notifyUpscaled(inputPath);
+    } finally {
+      try {
+        final temp = File(tempOutput);
+        if (temp.existsSync()) {
+          await temp.delete();
+        }
+      } catch (_) {}
+    }
+  }
+
+  /// 走**本机常驻服务**超分（仅 Windows）。
+  ///
+  /// 与 [_upscaleRemote] 的唯一区别是地址来源：本机服务固定 `127.0.0.1`，不读用户
+  /// 配置的远程地址，也不带远程 Token。请求格式与远程路径完全一致 —— 因为服务端
+  /// 就是同一份 `mjn_service.py`，跑在 WSL 容器与 Windows 原生两种宿主上。
+  ///
+  /// 覆盖回**原路径**的语义与其它引擎一致：超分对阅读器不可见，靠
+  /// [ImageUpscaledEvent] 触发热替换。
+  static Future<void> _upscaleLocalService(String inputPath) async {
+    final baseUrl = MjnLocalService.instance.baseUrl;
+    if (baseUrl == null) {
+      throw StateError('本机超分服务不可用');
+    }
+
+    final scale = await RealSrSettings.loadMangaJaNaiScale();
+    final threshold = await RealSrSettings.loadMangaJaNaiGrayscaleThreshold();
+    final cachePath = await getCachePath();
+    final tempOutput = p.join(cachePath, 'mjn_local_${const Uuid().v4()}.webp');
+
+    try {
+      await MangaJaNaiRemoteEngine.upscale(
+        inputPath: inputPath,
+        outputPath: tempOutput,
+        scale: scale,
+        grayscaleThreshold: threshold,
+        baseUrlOverride: baseUrl,
       );
       await _replaceFile(tempOutput, inputPath);
       _notifyUpscaled(inputPath);

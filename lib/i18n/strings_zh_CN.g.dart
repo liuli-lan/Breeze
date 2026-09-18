@@ -2986,6 +2986,33 @@ class Translations$realSr$zh_CN {
 
 	/// zh-CN: '默认：$path'
 	String mangaJaNaiPathHint({required Object path}) => '默认：${path}';
+
+	/// zh-CN: '本机常驻超分服务'
+	String get mangaJaNaiService => '本机常驻超分服务';
+
+	/// zh-CN: '服务常驻内存与显存，超分固定开销只付一次'
+	String get mangaJaNaiServiceSubtitle => '服务常驻内存与显存，超分固定开销只付一次';
+
+	/// zh-CN: '常驻服务已就绪'
+	String get mangaJaNaiServiceReady => '常驻服务已就绪';
+
+	/// zh-CN: '常驻服务未就绪'
+	String get mangaJaNaiServiceNotReady => '常驻服务未就绪';
+
+	/// zh-CN: '正在启动常驻服务…'
+	String get mangaJaNaiServiceStarting => '正在启动常驻服务…';
+
+	/// zh-CN: '尚未检测'
+	String get mangaJaNaiServiceUnknown => '尚未检测';
+
+	/// zh-CN: '检测 / 启动'
+	String get mangaJaNaiServiceCheck => '检测 / 启动';
+
+	/// zh-CN: '$device · 已加载 $models 个模型 · $extra'
+	String mangaJaNaiServiceStatusFormat({required Object device, required Object models, required Object extra}) => '${device} · 已加载 ${models} 个模型 · ${extra}';
+
+	/// zh-CN: '未就绪时会自动回退到 CLI 路径：功能不受影响，只是每页约 6 秒而不是约 1.2 秒'
+	String get mangaJaNaiServiceFallbackHint => '未就绪时会自动回退到 CLI 路径：功能不受影响，只是每页约 6 秒而不是约 1.2 秒';
 }
 
 // Path: about
@@ -4922,6 +4949,15 @@ extension on Translations {
 			'realSr.mangaJaNaiInstallDone' => 'MangaJaNai 引擎安装完成',
 			'realSr.mangaJaNaiInstallFailed' => 'MangaJaNai 引擎安装失败',
 			'realSr.mangaJaNaiPathHint' => ({required Object path}) => '默认：${path}',
+			'realSr.mangaJaNaiService' => '本机常驻超分服务',
+			'realSr.mangaJaNaiServiceSubtitle' => '服务常驻内存与显存，超分固定开销只付一次',
+			'realSr.mangaJaNaiServiceReady' => '常驻服务已就绪',
+			'realSr.mangaJaNaiServiceNotReady' => '常驻服务未就绪',
+			'realSr.mangaJaNaiServiceStarting' => '正在启动常驻服务…',
+			'realSr.mangaJaNaiServiceUnknown' => '尚未检测',
+			'realSr.mangaJaNaiServiceCheck' => '检测 / 启动',
+			'realSr.mangaJaNaiServiceStatusFormat' => ({required Object device, required Object models, required Object extra}) => '${device} · 已加载 ${models} 个模型 · ${extra}',
+			'realSr.mangaJaNaiServiceFallbackHint' => '未就绪时会自动回退到 CLI 路径：功能不受影响，只是每页约 6 秒而不是约 1.2 秒',
 			'about.title' => '关于应用',
 			'about.version' => ({required Object version}) => '版本号: ${version}',
 			'about.loading' => '加载中...',
@@ -5012,6 +5048,8 @@ extension on Translations {
 			'search.selectCategory' => '选择分类',
 			'search.dataSource' => '数据来源',
 			'search.sortBy' => '排序方式',
+			_ => null,
+		} ?? switch (path) {
 			'search.newestToOldest' => '从新到旧',
 			'search.oldestToNewest' => '从旧到新',
 			'search.mostLikes' => '最多点赞',
@@ -5021,8 +5059,6 @@ extension on Translations {
 			'search.showErrors' => '显示错误',
 			'search.resultCount' => ({required Object count}) => '${count} 条',
 			'search.noResults' => '无结果',
-			_ => null,
-		} ?? switch (path) {
 			'search.loadFailedForSource' => ({required Object source}) => '${source} 加载失败',
 			'discover.title' => '发现',
 			'discover.search' => '搜索',

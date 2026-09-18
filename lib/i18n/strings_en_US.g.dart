@@ -1132,6 +1132,15 @@ class _Translations$realSr$en_US extends Translations$realSr$zh_CN {
 	@override String get mangaJaNaiInstallDone => 'MangaJaNai engine installed';
 	@override String get mangaJaNaiInstallFailed => 'MangaJaNai engine installation failed';
 	@override String mangaJaNaiPathHint({required Object path}) => 'Default: ${path}';
+	@override String get mangaJaNaiService => 'Local resident upscaling service';
+	@override String get mangaJaNaiServiceSubtitle => 'Keeps the runtime and models in memory, so the fixed cost is paid once';
+	@override String get mangaJaNaiServiceReady => 'Resident service ready';
+	@override String get mangaJaNaiServiceNotReady => 'Resident service not ready';
+	@override String get mangaJaNaiServiceStarting => 'Starting resident service…';
+	@override String get mangaJaNaiServiceUnknown => 'Not checked yet';
+	@override String get mangaJaNaiServiceCheck => 'Check / Start';
+	@override String mangaJaNaiServiceStatusFormat({required Object device, required Object models, required Object extra}) => '${device} · ${models} models loaded · ${extra}';
+	@override String get mangaJaNaiServiceFallbackHint => 'When not ready it falls back to the CLI path automatically: still works, just ~6 s per page instead of ~1.2 s';
 }
 
 // Path: about
@@ -2515,6 +2524,15 @@ extension on TranslationsEnUs {
 			'realSr.mangaJaNaiInstallDone' => 'MangaJaNai engine installed',
 			'realSr.mangaJaNaiInstallFailed' => 'MangaJaNai engine installation failed',
 			'realSr.mangaJaNaiPathHint' => ({required Object path}) => 'Default: ${path}',
+			'realSr.mangaJaNaiService' => 'Local resident upscaling service',
+			'realSr.mangaJaNaiServiceSubtitle' => 'Keeps the runtime and models in memory, so the fixed cost is paid once',
+			'realSr.mangaJaNaiServiceReady' => 'Resident service ready',
+			'realSr.mangaJaNaiServiceNotReady' => 'Resident service not ready',
+			'realSr.mangaJaNaiServiceStarting' => 'Starting resident service…',
+			'realSr.mangaJaNaiServiceUnknown' => 'Not checked yet',
+			'realSr.mangaJaNaiServiceCheck' => 'Check / Start',
+			'realSr.mangaJaNaiServiceStatusFormat' => ({required Object device, required Object models, required Object extra}) => '${device} · ${models} models loaded · ${extra}',
+			'realSr.mangaJaNaiServiceFallbackHint' => 'When not ready it falls back to the CLI path automatically: still works, just ~6 s per page instead of ~1.2 s',
 			'about.title' => 'About app',
 			'about.version' => ({required Object version}) => 'Version: ${version}',
 			'about.loading' => 'Loading...',
@@ -2606,6 +2624,8 @@ extension on TranslationsEnUs {
 			'search.dataSource' => 'Data Source',
 			'search.sortBy' => 'Sort By',
 			'search.newestToOldest' => 'Newest to oldest',
+			_ => null,
+		} ?? switch (path) {
 			'search.oldestToNewest' => 'Oldest to newest',
 			'search.mostLikes' => 'Most likes',
 			'search.mostViews' => 'Most views',
@@ -2615,8 +2635,6 @@ extension on TranslationsEnUs {
 			'search.resultCount' => ({required Object count}) => '${count} results',
 			'search.noResults' => 'No results',
 			'search.loadFailedForSource' => ({required Object source}) => 'Failed to load ${source}',
-			_ => null,
-		} ?? switch (path) {
 			'discover.title' => 'Discover',
 			'discover.search' => 'Search',
 			'discover.settings' => 'Settings',

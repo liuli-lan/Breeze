@@ -12,6 +12,7 @@ import 'package:zephyr/page/setting/real_sr/service/desktop_ncnn_model_config.da
 import 'package:zephyr/page/setting/real_sr/service/mangajanai_bootstrap.dart';
 import 'package:zephyr/page/setting/real_sr/service/mangajanai_engine.dart';
 import 'package:zephyr/page/setting/real_sr/service/mangajanai_remote.dart';
+import 'package:zephyr/page/setting/real_sr/service/mjn_local_service.dart';
 import 'package:zephyr/page/setting/real_sr/service/real_sr_settings.dart';
 import 'package:zephyr/page/setting/real_sr/service/real_sr_super_resolution.dart';
 import 'package:zephyr/type/enum.dart';
@@ -75,6 +76,11 @@ class _RealSrSettingPageState extends State<RealSrSettingPage> {
   String _mangaJaNaiBackendSrcDir = '';
   String _mangaJaNaiModelsDir = '';
   List<String> _mangaJaNaiMissing = const [];
+
+  /// 本机常驻超分服务的状态（仅「本地 MangaJaNai」引擎相关）。
+  MjnServiceStatus? _mjnServiceStatus;
+  bool _serviceStarting = false;
+
   bool _installingEngine = false;
   String? _installStatusText;
   CoreMLModelFamily _coreMLFamily = CoreMLModelConfig.defaultFamily;
@@ -252,6 +258,79 @@ class _RealSrSettingPageState extends State<RealSrSettingPage> {
   Future<void> _refreshMangaJaNaiStatus() async {
     final missing = await MangaJaNaiEngine.missingRequirements();
     if (mounted) setState(() => _mangaJaNaiMissing = missing);
+
+    // 引擎齐全时顺手把**本机常驻服务**拉起来并回显状态。
+    //
+    // 设置页是「用户主动表达意图」的地方，所以 force = true 绕过「只尝试一次」守卫 ——
+    // 用户重进页面就该重试一遍，而不是一直盯着上次的失败结论。
+    if (Platform.isWindows && missing.isEmpty) {
+      await _startLocalService(force: true);
+    }
+  }
+
+  /// 启动/复检本机常驻服务，并把结果落到界面状态。
+  Future<void> _startLocalService({required bool force}) async {
+    if (!mounted) return;
+    setState(() => _serviceStarting = true);
+    try {
+      final status = await MjnLocalService.instance.ensureStarted(force: force);
+      if (mounted) setState(() => _mjnServiceStatus = status);
+    } finally {
+      if (mounted) setState(() => _serviceStarting = false);
+    }
+  }
+
+  /// 常驻服务状态的一句话描述。
+  String get _localServiceLine {
+    if (_serviceStarting) return t.realSr.mangaJaNaiServiceStarting;
+    final status = _mjnServiceStatus;
+    if (status == null) return t.realSr.mangaJaNaiServiceUnknown;
+
+    final health = status.health;
+    if (health != null) {
+      return t.realSr.mangaJaNaiServiceStatusFormat(
+        device: health.device,
+        models: health.loadedModels,
+        extra: status.message ?? t.realSr.mangaJaNaiServiceSubtitle,
+      );
+    }
+    // 未就绪：把失败原因说清楚，并说明「会回退，不是坏了」。
+    final reason = status.message;
+    return reason == null
+        ? t.realSr.mangaJaNaiServiceFallbackHint
+        : '$reason\n${t.realSr.mangaJaNaiServiceFallbackHint}';
+  }
+
+  /// 本机常驻服务的状态瓦片。
+  ///
+  /// 这一行是必要的：没有它就只看得到「有时快有时慢」，无从判断原因。
+  /// 服务就绪 ≈ 每页 1.2 s；回退到 CLI ≈ 每页 6 s，两者都在这一行里体现。
+  Widget _buildLocalServiceTile() {
+    final ready = _mjnServiceStatus?.ready ?? false;
+    return ListTile(
+      leading: _serviceStarting
+          ? const SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : Icon(
+              ready ? Icons.offline_bolt_outlined : Icons.hourglass_empty,
+              color: ready ? Theme.of(context).colorScheme.primary : null,
+            ),
+      title: Text(
+        ready
+            ? t.realSr.mangaJaNaiServiceReady
+            : t.realSr.mangaJaNaiServiceNotReady,
+      ),
+      subtitle: Text(_localServiceLine),
+      trailing: TextButton(
+        onPressed: _serviceStarting
+            ? null
+            : () => _startLocalService(force: true),
+        child: Text(t.realSr.mangaJaNaiServiceCheck),
+      ),
+    );
   }
 
   // =========================================================
@@ -856,6 +935,7 @@ class _RealSrSettingPageState extends State<RealSrSettingPage> {
         ),
       ),
       _buildMangaJaNaiStatusTile(),
+      _buildLocalServiceTile(),
       if (_mangaJaNaiMissing.isNotEmpty)
         ListTile(
           leading: Icon(
