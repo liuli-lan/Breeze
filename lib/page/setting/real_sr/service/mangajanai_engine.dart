@@ -106,6 +106,15 @@ class MangaJaNaiEngine {
     );
   }
 
+  /// 公开的路径解析入口，供**本机常驻服务宿主**复用同一套优先级逻辑
+  /// （用户覆写 > GUI 安装 > Breeze 自带引擎包）。
+  ///
+  /// 服务需要的东西与 CLI 路径完全一致：`python.exe`（跑服务端）、后端目录
+  /// （`run_upscale.py` 所在）、模型目录。复用这里可以避免两处解析逻辑漂移 ——
+  /// 一旦分叉，会出现「CLI 能用但服务起不来」这种极难排查的不一致。
+  static Future<({String pythonPath, String backendSrcDir, String modelsDir})>
+  resolvePaths() => _resolvePaths();
+
   /// 引擎依赖的全部链模型文件名（与 [_buildChains] 一一对应）。
   static List<String> requiredModelFiles() {
     return [

@@ -157,6 +157,13 @@ flutter:
     - asset/image/bika_image/cat_random.jpg
     - asset/image/assets/default_cover.png
     - .env.proxy
+    # 本机常驻超分服务（mjn-service）的代码：随应用分发，首次启动释放到
+    # <files>/mangajanai/service/。约 55 KB，无第三方依赖需分发（sanic / pyvips
+    # 已在 MangaJaNaiBootstrap 的 pip 清单里）。仅 Windows 需要。
+    - path: asset/mangajanai_service/mjn_service.py
+      platforms: [windows]
+    - path: asset/mangajanai_service/chains.py
+      platforms: [windows]
 objectbox:
   # Writes objectbox-model.json and objectbox.g.dart to lib/custom (and test/custom).
   output_dir:

@@ -38,6 +38,49 @@ class RealSrSettings {
       'realsr_mangajanai_remote_base_url';
   static const _keyMangaJaNaiRemoteApiKey = 'realsr_mangajanai_remote_api_key';
 
+  /// 本机常驻服务（mjn-service）的监听端口。
+  static const _keyMjnServicePort = 'realsr_mjn_service_port';
+
+  /// 本机常驻服务是否绑到 0.0.0.0（让手机等局域网设备也能用）。
+  static const _keyMjnServiceBindLan = 'realsr_mjn_service_bind_lan';
+
+  /// 本机常驻服务的默认端口，与 mjn-service 的 `MJN_PORT` 默认值一致。
+  static const int defaultMjnServicePort = 8765;
+
+  /// 本机常驻服务的监听端口。
+  ///
+  /// 端口可配是因为 8765 可能与别的实例冲突：例如本机同时跑着 WSL 侧的服务
+  /// （经 portproxy 暴露到 `127.0.0.1:8765`）。冲突时宿主会按退出码 3 复用现有实例，
+  /// 也可以在这里改端口让两者并存。
+  static Future<int> loadMjnServicePort() async {
+    final prefs = await SharedPreferences.getInstance();
+    final value = prefs.getInt(_keyMjnServicePort);
+    if (value == null || value < 1024 || value > 65535) {
+      return defaultMjnServicePort;
+    }
+    return value;
+  }
+
+  static Future<void> saveMjnServicePort(int value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_keyMjnServicePort, value);
+  }
+
+  /// 本机常驻服务是否对局域网开放。
+  ///
+  /// 默认开启：这样同一台 PC 的显卡也能服务手机（这是把服务搬上 Windows 的主要动机）。
+  /// 代价是首次监听时 Windows 防火墙会弹「允许访问」——需要用户点一次允许，
+  /// 且同网段设备可以提交超分任务（服务端未开鉴权，纯局域网自用定位）。
+  static Future<bool> loadMjnServiceBindLan() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_keyMjnServiceBindLan) ?? true;
+  }
+
+  static Future<void> saveMjnServiceBindLan(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyMjnServiceBindLan, value);
+  }
+
   /// 默认并发数：**全平台固定 1（单线程）**。
   ///
   /// 依据：MangaJaNai 后端单进程最快——多个独立进程各持 CUDA context，在消费级卡上
