@@ -2,7 +2,7 @@
 
 Produces ``mangajanai-win.7z`` containing::
 
-    python/    embedded Python 3.13 + PyTorch CUDA + deps (~4.9 GB on disk)
+    python/    embedded Python 3.12 + PyTorch CUDA + deps (~4.9 GB on disk)
     models/    MangaJaNai / IllustrationJaNai weights (~1.2 GB)
     backend/   chaiNNer Python backend used by run_upscale.py (~1.5 MB)
     LICENSES.md

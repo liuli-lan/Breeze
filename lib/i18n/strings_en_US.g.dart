@@ -1151,7 +1151,7 @@ class _Translations$realSr$en_US extends Translations$realSr$zh_CN {
 	@override String get mangaJaNaiRuntimeInstall => 'Install Online';
 	@override String get mangaJaNaiRuntimeManualDownload => 'Manual runtime download';
 	@override String get mangaJaNaiRuntimeImport => 'Import runtime archive';
-	@override String get mangaJaNaiRuntimeImportSubtitle => 'Pick a mangajanai-win.7z you downloaded (or copied from another machine). The 7z format and the bundled Python, backend, ICC profiles and 16 model files are validated first; a failed check never touches the existing install. The resident service is stopped before importing — click “Check / Start” afterwards to bring it back';
+	@override String get mangaJaNaiRuntimeImportSubtitle => 'Pick a 7z offline runtime archive or the upstream Portable ZIP. Python, backend, ICC profiles and models are validated first; a failed check never touches the existing install. The resident service is stopped before importing — click “Check / Start” afterwards to bring it back';
 	@override String get mangaJaNaiRuntimeImportRunning => 'Validating and importing the runtime, please keep the app open…';
 	@override String get mangaJaNaiRuntimeImportDone => 'Runtime imported';
 	@override String get mangaJaNaiRuntimeImportFailed => 'Runtime import failed';
@@ -2570,7 +2570,7 @@ extension on TranslationsEnUs {
 			'realSr.mangaJaNaiRuntimeInstall' => 'Install Online',
 			'realSr.mangaJaNaiRuntimeManualDownload' => 'Manual runtime download',
 			'realSr.mangaJaNaiRuntimeImport' => 'Import runtime archive',
-			'realSr.mangaJaNaiRuntimeImportSubtitle' => 'Pick a mangajanai-win.7z you downloaded (or copied from another machine). The 7z format and the bundled Python, backend, ICC profiles and 16 model files are validated first; a failed check never touches the existing install. The resident service is stopped before importing — click “Check / Start” afterwards to bring it back',
+			'realSr.mangaJaNaiRuntimeImportSubtitle' => 'Pick a 7z offline runtime archive or the upstream Portable ZIP. Python, backend, ICC profiles and models are validated first; a failed check never touches the existing install. The resident service is stopped before importing — click “Check / Start” afterwards to bring it back',
 			'realSr.mangaJaNaiRuntimeImportRunning' => 'Validating and importing the runtime, please keep the app open…',
 			'realSr.mangaJaNaiRuntimeImportDone' => 'Runtime imported',
 			'realSr.mangaJaNaiRuntimeImportFailed' => 'Runtime import failed',

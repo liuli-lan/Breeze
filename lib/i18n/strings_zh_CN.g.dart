@@ -3044,8 +3044,8 @@ class Translations$realSr$zh_CN {
 	/// zh-CN: '导入运行环境压缩包'
 	String get mangaJaNaiRuntimeImport => '导入运行环境压缩包';
 
-	/// zh-CN: '选择手动下载（或他人拷贝给你）的 mangajanai-win.7z；导入前会校验 7z 格式与包内的 Python、后端、ICC 与 16 个模型文件，校验不通过不会改动现有安装。导入会先停掉常驻服务，完成后点「检测 / 启动」即可重新拉起'
-	String get mangaJaNaiRuntimeImportSubtitle => '选择手动下载（或他人拷贝给你）的 mangajanai-win.7z；导入前会校验 7z 格式与包内的 Python、后端、ICC 与 16 个模型文件，校验不通过不会改动现有安装。导入会先停掉常驻服务，完成后点「检测 / 启动」即可重新拉起';
+	/// zh-CN: '选择 7z 离线运行环境包或上游 Portable ZIP；导入前会校验其中的 Python、后端、ICC 与模型文件，校验不通过不会改动现有安装。导入会先停掉常驻服务，完成后点「检测 / 启动」即可重新拉起'
+	String get mangaJaNaiRuntimeImportSubtitle => '选择 7z 离线运行环境包或上游 Portable ZIP；导入前会校验其中的 Python、后端、ICC 与模型文件，校验不通过不会改动现有安装。导入会先停掉常驻服务，完成后点「检测 / 启动」即可重新拉起';
 
 	/// zh-CN: '正在校验并导入运行环境，请勿关闭应用…'
 	String get mangaJaNaiRuntimeImportRunning => '正在校验并导入运行环境，请勿关闭应用…';
@@ -5049,7 +5049,7 @@ extension on Translations {
 			'realSr.mangaJaNaiRuntimeInstall' => '在线安装',
 			'realSr.mangaJaNaiRuntimeManualDownload' => '手动下载运行环境包',
 			'realSr.mangaJaNaiRuntimeImport' => '导入运行环境压缩包',
-			'realSr.mangaJaNaiRuntimeImportSubtitle' => '选择手动下载（或他人拷贝给你）的 mangajanai-win.7z；导入前会校验 7z 格式与包内的 Python、后端、ICC 与 16 个模型文件，校验不通过不会改动现有安装。导入会先停掉常驻服务，完成后点「检测 / 启动」即可重新拉起',
+			'realSr.mangaJaNaiRuntimeImportSubtitle' => '选择 7z 离线运行环境包或上游 Portable ZIP；导入前会校验其中的 Python、后端、ICC 与模型文件，校验不通过不会改动现有安装。导入会先停掉常驻服务，完成后点「检测 / 启动」即可重新拉起',
 			'realSr.mangaJaNaiRuntimeImportRunning' => '正在校验并导入运行环境，请勿关闭应用…',
 			'realSr.mangaJaNaiRuntimeImportDone' => '运行环境导入完成',
 			'realSr.mangaJaNaiRuntimeImportFailed' => '运行环境导入失败',

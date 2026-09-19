@@ -66,7 +66,7 @@ typedef MangaJaNaiInstallProgress =
 class MangaJaNaiBootstrap {
   MangaJaNaiBootstrap._();
 
-  static const _pythonVersion = '3.13.9';
+  static const _pythonVersion = '3.12.10';
   static const _pythonEmbeddableUrl =
       'https://www.python.org/ftp/python/$_pythonVersion/'
       'python-$_pythonVersion-embed-amd64.zip';
@@ -75,6 +75,9 @@ class MangaJaNaiBootstrap {
   /// 版本与后端 `pyproject.toml` 锁定一致。torch 系必须从 pytorch 官方 cu128
   /// 索引安装（PyPI 上的 Windows torch wheel 不含 CUDA）；pyproject 里写的
   /// cu121 已失效——该索引中已无任何 torch 发行版（实测），GUI 实装的是 cu128。
+  ///
+  /// Python 固定用 3.12：`chainner_ext==0.3.10` 的 Windows wheel 只发布到
+  /// cp312；用 3.13 会落入 sdist，并因缺 `maturin` 构建失败。
   static const _torchVersion = '2.9.1';
   static const _torchvisionVersion = '0.24.1';
 
@@ -95,11 +98,14 @@ class MangaJaNaiBootstrap {
     'spandrel==0.4.1',
   ];
 
-  /// 后端源码包（~1.5MB）：`script/pack_mangajanai_windows.py --backend-only`
-  /// 产出，上传到 Breeze 的发布渠道。后端为 GPL 源码，包内附许可说明。
+  /// 后端源码归档（约 1 MB）：直接使用上游官方仓库 main 分支 ZIP。
+  ///
+  /// 历史上的 Breeze Release 后端包只是占位链接（从未上传）；上游源码包
+  /// 已含完整 `backend/`，能省掉一次私自打包发布。ZIP 顶层含仓库目录名，
+  /// 解压后必须归一化。
   static const _backendArchiveUrl =
-      'https://github.com/liuli-lan/Breeze/releases/download/'
-      'mangajanai-engine-v1/mangajanai-backend.7z';
+      'https://github.com/the-database/MangaJaNaiConverterGui/archive/'
+      'refs/heads/main.zip';
 
   /// 模型包：官方 Release 整包 zip。共约 600MB（zip 内含 Breeze 用不到的
   /// 变体，解压后只提取链需要的文件）。
@@ -118,17 +124,6 @@ class MangaJaNaiBootstrap {
 
   /// pip 安装兜底超时：torch wheel ~2.5GB，慢网络下可能需要很久。
   static const _pipTimeout = Duration(minutes: 90);
-
-  /// 离线运行环境包（`mangajanai-win.7z`）的手动下载直链。
-  ///
-  /// 由 `script/pack_mangajanai_windows.py` 产出（含 `python/` + `models/` +
-  /// `backend/` + `LICENSES.md`，约 3 GB），上传到与后端包同一个发布标签下。
-  ///
-  /// 这是**唯一能绕过约 4 GB 在线下载的合法通道**（方案 §12.2）：模型由用户自己
-  /// 获取，不构成 Breeze 再分发，因此不触碰 CC BY-NC 4.0 的红线。
-  static const String manualArchiveUrl =
-      'https://github.com/liuli-lan/Breeze/releases/download/'
-      'mangajanai-engine-v1/mangajanai-win.7z';
 
   /// 离线包内必须存在的顶层目录（与 GUI 安装同构）。
   ///
@@ -253,12 +248,12 @@ class MangaJaNaiBootstrap {
 
       // embeddable 默认禁用 site-packages：重写 ._pth 放开，否则 pip 装的
       // 包全部 import 不到。文件名为 python<major><minor>._pth（如 3.13 →
-      // python313._pth）；内容与 GUI 实际写入的版本一致（不存在的路径会被
+      // python312._pth）；内容与 GUI 实际写入的版本一致（不存在的路径会被
       // 忽略，pip 装完后 Lib/site-packages 自然生效）。
       final versionKey = _pythonVersion.split('.').take(2).join();
       await File(
         p.join(pythonDir, 'python$versionKey._pth'),
-      ).writeAsString('python313.zip\nDLLs\nLib\n.\nLib/site-packages\n');
+      ).writeAsString('python312.zip\nDLLs\nLib\n.\nLib/site-packages\n');
 
       final getPipPath = p.join(pythonDir, 'get-pip.py');
       await MangaJaNaiDownloader.download(
@@ -312,7 +307,7 @@ class MangaJaNaiBootstrap {
     final backendScript = p.join(root, 'backend', 'src', 'run_upscale.py');
     if (!File(backendScript).existsSync()) {
       onProgress?.call(MangaJaNaiInstallStage.backend);
-      final archivePath = p.join(cache, 'mangajanai-backend.7z');
+      final archivePath = p.join(cache, 'mangajanai-backend-main.zip');
       if (forceRedownload) {
         await MangaJaNaiDownloader.discardPartial(archivePath);
       }
@@ -322,9 +317,34 @@ class MangaJaNaiBootstrap {
         useGithubMirror: useGithubMirror,
         cancelToken: cancelToken,
       );
-      // 包内顶层即 backend/，解到引擎根目录。
-      await decompress7Z(archivePath: archivePath, destPath: root);
-      _quietDelete(archivePath);
+      // 上游 ZIP 顶层是仓库目录，先解到临时目录，再归一化到 backend/。
+      final extractDir = Directory(
+        p.join(cache, 'mangajanai-backend-${const Uuid().v4()}'),
+      );
+      try {
+        await extractDir.create(recursive: true);
+        await _extractZipSmall(archivePath, extractDir.path);
+
+        final subDirs = extractDir
+            .listSync()
+            .whereType<Directory>()
+            .toList();
+        final backendSource = subDirs.length == 1
+            ? Directory(p.join(subDirs.single.path, 'backend'))
+            : Directory(p.join(extractDir.path, 'backend'));
+        if (!backendSource.existsSync()) {
+          throw StateError('上游后端源码包缺少 backend/ 目录');
+        }
+
+        final backendDest = Directory(p.join(root, 'backend'));
+        if (backendDest.existsSync()) {
+          await backendDest.delete(recursive: true);
+        }
+        await _moveDirectory(backendSource, backendDest);
+      } finally {
+        _quietDeleteDir(extractDir.path);
+        _quietDelete(archivePath);
+      }
     }
     checkCancel();
 
@@ -432,7 +452,7 @@ class MangaJaNaiBootstrap {
     final cache = await getCachePath();
     for (final name in [
       'mangajanai-python-embed.zip',
-      'mangajanai-backend.7z',
+      'mangajanai-backend-main.zip',
       for (final (_, fileName) in _modelPackages) fileName,
     ]) {
       await MangaJaNaiDownloader.discardPartial(p.join(cache, name));
@@ -486,10 +506,12 @@ class MangaJaNaiBootstrap {
         detail: archivePath,
       );
     }
-    if (!await RealSrSuperResolution.isSevenZArchive(archiveFile)) {
+    final isSevenZ = await RealSrSuperResolution.isSevenZArchive(archiveFile);
+    final isZip = await _isZipArchive(archiveFile);
+    if (!isSevenZ && !isZip) {
       throw const MangaJaNaiInstallException(
         kind: MangaJaNaiFailureKind.unknown,
-        message: '不是有效的 7z 压缩包（请选择 mangajanai-win.7z）',
+        message: '不是有效的压缩包（支持 7z 离线包或上游 Portable ZIP）',
       );
     }
 
@@ -505,7 +527,11 @@ class MangaJaNaiBootstrap {
         detail: '正在解压离线包（约 3 GB，需要几分钟）…',
       );
       await extracted.create(recursive: true);
-      await decompress7Z(archivePath: archivePath, destPath: extracted.path);
+      if (isSevenZ) {
+        await decompress7Z(archivePath: archivePath, destPath: extracted.path);
+      } else {
+        await _extractZipSmall(archivePath, extracted.path);
+      }
       checkCancel();
 
       final missing = await MangaJaNaiArchiveValidator.validate(extracted.path);
@@ -582,6 +608,21 @@ class MangaJaNaiBootstrap {
       await MjnLocalService.instance.releaseServiceCode();
     } on Object catch (e, s) {
       logger.w('常驻服务代码释放失败（引擎本身可用）', error: e, stackTrace: s);
+    }
+  }
+
+  /// 识别 ZIP 魔数；上游 Portable 分发是 ZIP，而自打离线包是 7z。
+  static Future<bool> _isZipArchive(File file) async {
+    final raf = await file.open();
+    try {
+      final bytes = await raf.read(4);
+      return bytes.length >= 4 &&
+          bytes[0] == 0x50 &&
+          bytes[1] == 0x4B &&
+          (bytes[2] == 0x03 || bytes[2] == 0x05 || bytes[2] == 0x07) &&
+          (bytes[3] == 0x04 || bytes[3] == 0x06 || bytes[3] == 0x08);
+    } finally {
+      await raf.close();
     }
   }
 

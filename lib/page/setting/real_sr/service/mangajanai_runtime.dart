@@ -33,8 +33,10 @@ import 'package:zephyr/page/setting/real_sr/service/mjn_local_service.dart';
 class MangaJaNaiRuntime {
   MangaJaNaiRuntime._();
 
-  /// 离线包直链（② 手动下载用），与 Bootstrap 的发布渠道同源。
-  static const String manualDownloadUrl = MangaJaNaiBootstrap.manualArchiveUrl;
+  /// 手动下载使用上游官方分发的 Portable 包直链。
+  static const String manualDownloadUrl =
+      'https://github.com/the-database/MangaJaNaiConverterGui/releases/'
+      'latest/download/MangaJaNaiConverterGui-win-Portable.zip';
 
   /// 运行环境根目录（与 [MangaJaNaiBootstrap] 的安装目录一致）。
   static Future<String> installRoot() => MangaJaNaiBootstrap.installRoot();

@@ -249,9 +249,11 @@ MangaJaNaiInstallException classifyInstallError(
     );
   }
 
-  if (text.contains('cuda') ||
-      text.contains('nvidia') ||
-      text.contains('nvml') ||
+  // 注意：不要只匹配 'nvml' —— `pynvml` 只是一个普通 PyPI 包名，
+  // pip 输出里出现它并不代表 GPU/CUDA 初始化失败。
+  if (text.contains('cuda init') ||
+      text.contains('cuda error') ||
+      text.contains('nvidia driver') ||
       text.contains('cudnn')) {
     return MangaJaNaiInstallException(
       kind: MangaJaNaiFailureKind.driver,

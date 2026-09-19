@@ -689,6 +689,13 @@ class MangaJaNaiArchiveValidator {
     if (Directory(p.join(extractedRoot, 'python')).existsSync()) {
       return extractedRoot;
     }
+    // 上游 Portable ZIP 的 backend 位于 current/ 下；这是部分补齐包，
+    // 只导入 backend 而不是整个 GUI 程序。
+    final current = Directory(p.join(extractedRoot, 'current'));
+    if (current.existsSync() &&
+        Directory(p.join(current.path, 'backend')).existsSync()) {
+      return current.path;
+    }
     final wrapped = _findWrappedRoot(extractedRoot);
     return wrapped ?? extractedRoot;
   }
