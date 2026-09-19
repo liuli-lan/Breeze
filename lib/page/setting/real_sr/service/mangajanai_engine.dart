@@ -590,3 +590,74 @@ class MangaJaNaiEngine {
     return '...${trimmed.substring(trimmed.length - maxLength)}';
   }
 }
+
+/// `mangajanai-win.7z` 解压后的内容校验器（方案 §12.3 的「MangaJaNai 版
+/// `_missingModelFiles()`」）。
+///
+/// 与 NCNN 的 `_missingModelFiles()` 同构，但**按内容按目录**判定，且
+/// **容忍多一层目录包装**（用户可能把整个 `mangajanai/` 文件夹打进包里，
+/// 也可能按打包脚本那样顶层直接是 `python/ models/ backend/`）。
+///
+/// 四类必须项缺了都会在运行期才炸，因此导入前必须全部拦住：
+/// - `python/python/python.exe`：服务与 CLI 都靠它跑；
+/// - `backend/src/run_upscale.py`：CLI 入口（服务端直接 import 后端模块）；
+/// - `backend/ImageMagick/*.icc`：`run_upscale` 从 `../ImageMagick/` 读 ICC，
+///   缺了会在超分中途抛异常 —— 打包脚本整目录打 `backend/` 就是为了带上它；
+/// - `models/` 下 16 个链模型：缺哪个就在命中对应链时失败。
+class MangaJaNaiArchiveValidator {
+  MangaJaNaiArchiveValidator._();
+
+  /// 校验 [extractedRoot] 下的内容，返回缺失项描述；空列表表示通过。
+  static Future<List<String>> validate(String extractedRoot) async {
+    final root = _normalizeRoot(extractedRoot);
+    final missing = <String>[];
+
+    if (!File(p.join(root, 'python', 'python', 'python.exe')).existsSync()) {
+      missing.add(p.join('python', 'python', 'python.exe'));
+    }
+
+    if (!File(p.join(root, 'backend', 'src', 'run_upscale.py')).existsSync()) {
+      missing.add(p.join('backend', 'src', 'run_upscale.py'));
+    }
+
+    final iccDir = Directory(p.join(root, 'backend', 'ImageMagick'));
+    final hasIcc =
+        iccDir.existsSync() &&
+        iccDir.listSync().whereType<File>().any(
+          (f) => p.extension(f.path).toLowerCase() == '.icc',
+        );
+    if (!hasIcc) {
+      missing.add(p.join('backend', 'ImageMagick', '*.icc'));
+    }
+
+    for (final model in MangaJaNaiEngine.requiredModelFiles()) {
+      if (!File(p.join(root, 'models', model)).existsSync()) {
+        missing.add(p.join('models', model));
+      }
+    }
+
+    return missing;
+  }
+
+  /// 归一化到真正的引擎根目录。
+  ///
+  /// 判定依据是**内容**（能不能找到 `python` 目录）而非目录名 —— 名字随用户习惯变，
+  /// 内容不会。找不到就原样返回，让上层如实报告缺什么。
+  static String _normalizeRoot(String extractedRoot) {
+    if (Directory(p.join(extractedRoot, 'python')).existsSync()) {
+      return extractedRoot;
+    }
+    try {
+      final subDirs = Directory(
+        extractedRoot,
+      ).listSync().whereType<Directory>().toList();
+      if (subDirs.length == 1 &&
+          Directory(p.join(subDirs.first.path, 'python')).existsSync()) {
+        return subDirs.first.path;
+      }
+    } on Object catch (_) {
+      // 扫描失败时按原样返回，让 validate 的缺失报告说明问题
+    }
+    return extractedRoot;
+  }
+}

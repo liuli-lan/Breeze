@@ -2948,8 +2948,8 @@ class Translations$realSr$zh_CN {
 	/// zh-CN: 'MangaJaNai 未就绪'
 	String get mangaJaNaiNotReady => 'MangaJaNai 未就绪';
 
-	/// zh-CN: '未检测到以下组件（可在下方在线安装，或安装 GUI 并运行一次任务）：'
-	String get mangaJaNaiMissingHint => '未检测到以下组件（可在下方在线安装，或安装 GUI 并运行一次任务）：';
+	/// zh-CN: '未检测到以下组件（可在「运行环境」区在线安装、手动下载或导入离线包，也可安装 GUI 并运行一次任务）：'
+	String get mangaJaNaiMissingHint => '未检测到以下组件（可在「运行环境」区在线安装、手动下载或导入离线包，也可安装 GUI 并运行一次任务）：';
 
 	/// zh-CN: '在线安装引擎'
 	String get mangaJaNaiOnlineInstall => '在线安装引擎';
@@ -3013,6 +3013,87 @@ class Translations$realSr$zh_CN {
 
 	/// zh-CN: '未就绪时会自动回退到 CLI 路径：功能不受影响，只是每页约 6 秒而不是约 1.2 秒'
 	String get mangaJaNaiServiceFallbackHint => '未就绪时会自动回退到 CLI 路径：功能不受影响，只是每页约 6 秒而不是约 1.2 秒';
+
+	/// zh-CN: '运行环境（三种部署通道）'
+	String get mangaJaNaiRuntimeSection => '运行环境（三种部署通道）';
+
+	/// zh-CN: 'Breeze 托管的运行环境已就绪'
+	String get mangaJaNaiRuntimeReady => 'Breeze 托管的运行环境已就绪';
+
+	/// zh-CN: '尚未安装 Breeze 托管的运行环境'
+	String get mangaJaNaiRuntimeNotInstalled => '尚未安装 Breeze 托管的运行环境';
+
+	/// zh-CN: '在线安装需下载约 4 GB；也可用下面的离线通道：手动下载后导入，或直接导入别人拷贝给你的压缩包'
+	String get mangaJaNaiRuntimeNotInstalledSubtitle => '在线安装需下载约 4 GB；也可用下面的离线通道：手动下载后导入，或直接导入别人拷贝给你的压缩包';
+
+	/// zh-CN: '正在安装运行环境'
+	String get mangaJaNaiRuntimeInstalling => '正在安装运行环境';
+
+	/// zh-CN: '删除运行环境'
+	String get mangaJaNaiRuntimeDelete => '删除运行环境';
+
+	/// zh-CN: '重新安装'
+	String get mangaJaNaiRuntimeReinstall => '重新安装';
+
+	/// zh-CN: '在线安装'
+	String get mangaJaNaiRuntimeInstall => '在线安装';
+
+	/// zh-CN: '手动下载运行环境包'
+	String get mangaJaNaiRuntimeManualDownload => '手动下载运行环境包';
+
+	/// zh-CN: '导入运行环境压缩包'
+	String get mangaJaNaiRuntimeImport => '导入运行环境压缩包';
+
+	/// zh-CN: '选择手动下载（或他人拷贝给你）的 mangajanai-win.7z；导入前会校验 7z 格式与包内的 Python、后端、ICC 与 16 个模型文件，校验不通过不会改动现有安装。导入会先停掉常驻服务，完成后点「检测 / 启动」即可重新拉起'
+	String get mangaJaNaiRuntimeImportSubtitle => '选择手动下载（或他人拷贝给你）的 mangajanai-win.7z；导入前会校验 7z 格式与包内的 Python、后端、ICC 与 16 个模型文件，校验不通过不会改动现有安装。导入会先停掉常驻服务，完成后点「检测 / 启动」即可重新拉起';
+
+	/// zh-CN: '正在校验并导入运行环境，请勿关闭应用…'
+	String get mangaJaNaiRuntimeImportRunning => '正在校验并导入运行环境，请勿关闭应用…';
+
+	/// zh-CN: '运行环境导入完成'
+	String get mangaJaNaiRuntimeImportDone => '运行环境导入完成';
+
+	/// zh-CN: '运行环境导入失败'
+	String get mangaJaNaiRuntimeImportFailed => '运行环境导入失败';
+
+	/// zh-CN: '将删除 Breeze 托管的运行环境（files/mangajanai，含 Python、后端与模型），常驻服务会先被停掉。本机安装的 MangaJaNaiConverterGui 不受影响；删除后本地引擎需要重新安装或导入才能使用。确定继续吗？'
+	String get mangaJaNaiRuntimeDeleteConfirm => '将删除 Breeze 托管的运行环境（files/mangajanai，含 Python、后端与模型），常驻服务会先被停掉。本机安装的 MangaJaNaiConverterGui 不受影响；删除后本地引擎需要重新安装或导入才能使用。确定继续吗？';
+
+	/// zh-CN: '运行环境已删除'
+	String get mangaJaNaiRuntimeDeleted => '运行环境已删除';
+
+	/// zh-CN: '运行环境删除失败'
+	String get mangaJaNaiRuntimeDeleteFailed => '运行环境删除失败';
+
+	/// zh-CN: '正在预检（磁盘空间 / 显卡）…'
+	String get mangaJaNaiInstallStagePreflight => '正在预检（磁盘空间 / 显卡）…';
+
+	/// zh-CN: '正在释放常驻服务代码…'
+	String get mangaJaNaiInstallStageService => '正在释放常驻服务代码…';
+
+	/// zh-CN: '安装已取消'
+	String get mangaJaNaiInstallCancelled => '安装已取消';
+
+	/// zh-CN: '下载源'
+	String get mangaJaNaiDownloadSource => '下载源';
+
+	/// zh-CN: '自动（镜像优先，失败自动切官方）'
+	String get mangaJaNaiDownloadSourceAuto => '自动（镜像优先，失败自动切官方）';
+
+	/// zh-CN: '官方源（pypi.org / pytorch.org / github.com）'
+	String get mangaJaNaiDownloadSourceOfficial => '官方源（pypi.org / pytorch.org / github.com）';
+
+	/// zh-CN: '镜像源（清华 TUNA + gh-proxy）'
+	String get mangaJaNaiDownloadSourceMirror => '镜像源（清华 TUNA + gh-proxy）';
+
+	/// zh-CN: '优先用镜像加速；镜像失效或缺包时自动切回官方源重试，无需手动干预'
+	String get mangaJaNaiDownloadSourceAutoNote => '优先用镜像加速；镜像失效或缺包时自动切回官方源重试，无需手动干预';
+
+	/// zh-CN: '直接从官方源下载；海外或挂了代理的直连环境通常选它'
+	String get mangaJaNaiDownloadSourceOfficialNote => '直接从官方源下载；海外或挂了代理的直连环境通常选它';
+
+	/// zh-CN: '全部走国内镜像；镜像站可能失效或缺 torch cu128，失败后仍会自动回退官方源'
+	String get mangaJaNaiDownloadSourceMirrorNote => '全部走国内镜像；镜像站可能失效或缺 torch cu128，失败后仍会自动回退官方源';
 }
 
 // Path: about
@@ -4936,7 +5017,7 @@ extension on Translations {
 			'realSr.mangaJaNaiPathModels' => '模型目录',
 			'realSr.mangaJaNaiReady' => 'MangaJaNai 已就绪',
 			'realSr.mangaJaNaiNotReady' => 'MangaJaNai 未就绪',
-			'realSr.mangaJaNaiMissingHint' => '未检测到以下组件（可在下方在线安装，或安装 GUI 并运行一次任务）：',
+			'realSr.mangaJaNaiMissingHint' => '未检测到以下组件（可在「运行环境」区在线安装、手动下载或导入离线包，也可安装 GUI 并运行一次任务）：',
 			'realSr.mangaJaNaiOnlineInstall' => '在线安装引擎',
 			'realSr.mangaJaNaiOnlineInstallSubtitle' => '无需安装 GUI，从官方源自动获取全部内容（约 4 GB）',
 			'realSr.mangaJaNaiOnlineInstallAction' => '安装',
@@ -4958,6 +5039,33 @@ extension on Translations {
 			'realSr.mangaJaNaiServiceCheck' => '检测 / 启动',
 			'realSr.mangaJaNaiServiceStatusFormat' => ({required Object device, required Object models, required Object extra}) => '${device} · 已加载 ${models} 个模型 · ${extra}',
 			'realSr.mangaJaNaiServiceFallbackHint' => '未就绪时会自动回退到 CLI 路径：功能不受影响，只是每页约 6 秒而不是约 1.2 秒',
+			'realSr.mangaJaNaiRuntimeSection' => '运行环境（三种部署通道）',
+			'realSr.mangaJaNaiRuntimeReady' => 'Breeze 托管的运行环境已就绪',
+			'realSr.mangaJaNaiRuntimeNotInstalled' => '尚未安装 Breeze 托管的运行环境',
+			'realSr.mangaJaNaiRuntimeNotInstalledSubtitle' => '在线安装需下载约 4 GB；也可用下面的离线通道：手动下载后导入，或直接导入别人拷贝给你的压缩包',
+			'realSr.mangaJaNaiRuntimeInstalling' => '正在安装运行环境',
+			'realSr.mangaJaNaiRuntimeDelete' => '删除运行环境',
+			'realSr.mangaJaNaiRuntimeReinstall' => '重新安装',
+			'realSr.mangaJaNaiRuntimeInstall' => '在线安装',
+			'realSr.mangaJaNaiRuntimeManualDownload' => '手动下载运行环境包',
+			'realSr.mangaJaNaiRuntimeImport' => '导入运行环境压缩包',
+			'realSr.mangaJaNaiRuntimeImportSubtitle' => '选择手动下载（或他人拷贝给你）的 mangajanai-win.7z；导入前会校验 7z 格式与包内的 Python、后端、ICC 与 16 个模型文件，校验不通过不会改动现有安装。导入会先停掉常驻服务，完成后点「检测 / 启动」即可重新拉起',
+			'realSr.mangaJaNaiRuntimeImportRunning' => '正在校验并导入运行环境，请勿关闭应用…',
+			'realSr.mangaJaNaiRuntimeImportDone' => '运行环境导入完成',
+			'realSr.mangaJaNaiRuntimeImportFailed' => '运行环境导入失败',
+			'realSr.mangaJaNaiRuntimeDeleteConfirm' => '将删除 Breeze 托管的运行环境（files/mangajanai，含 Python、后端与模型），常驻服务会先被停掉。本机安装的 MangaJaNaiConverterGui 不受影响；删除后本地引擎需要重新安装或导入才能使用。确定继续吗？',
+			'realSr.mangaJaNaiRuntimeDeleted' => '运行环境已删除',
+			'realSr.mangaJaNaiRuntimeDeleteFailed' => '运行环境删除失败',
+			'realSr.mangaJaNaiInstallStagePreflight' => '正在预检（磁盘空间 / 显卡）…',
+			'realSr.mangaJaNaiInstallStageService' => '正在释放常驻服务代码…',
+			'realSr.mangaJaNaiInstallCancelled' => '安装已取消',
+			'realSr.mangaJaNaiDownloadSource' => '下载源',
+			'realSr.mangaJaNaiDownloadSourceAuto' => '自动（镜像优先，失败自动切官方）',
+			'realSr.mangaJaNaiDownloadSourceOfficial' => '官方源（pypi.org / pytorch.org / github.com）',
+			'realSr.mangaJaNaiDownloadSourceMirror' => '镜像源（清华 TUNA + gh-proxy）',
+			'realSr.mangaJaNaiDownloadSourceAutoNote' => '优先用镜像加速；镜像失效或缺包时自动切回官方源重试，无需手动干预',
+			'realSr.mangaJaNaiDownloadSourceOfficialNote' => '直接从官方源下载；海外或挂了代理的直连环境通常选它',
+			'realSr.mangaJaNaiDownloadSourceMirrorNote' => '全部走国内镜像；镜像站可能失效或缺 torch cu128，失败后仍会自动回退官方源',
 			'about.title' => '关于应用',
 			'about.version' => ({required Object version}) => '版本号: ${version}',
 			'about.loading' => '加载中...',
@@ -5021,6 +5129,8 @@ extension on Translations {
 			'more.sync' => '同步',
 			'more.comicFollow' => '追更',
 			'more.changelog' => '更新日志',
+			_ => null,
+		} ?? switch (path) {
 			'search.title' => '搜索',
 			'search.searchHint' => '搜索...',
 			'search.selectSource' => '选择漫画源',
@@ -5048,8 +5158,6 @@ extension on Translations {
 			'search.selectCategory' => '选择分类',
 			'search.dataSource' => '数据来源',
 			'search.sortBy' => '排序方式',
-			_ => null,
-		} ?? switch (path) {
 			'search.newestToOldest' => '从新到旧',
 			'search.oldestToNewest' => '从旧到新',
 			'search.mostLikes' => '最多点赞',

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zephyr/type/enum.dart';
 import 'package:zephyr/page/setting/real_sr/service/android_ncnn_model_config.dart';
+import 'package:zephyr/page/setting/real_sr/service/mangajanai_downloader.dart';
 import 'package:zephyr/util/coreml_model_config.dart';
 
 bool get _isDesktop =>
@@ -79,6 +80,27 @@ class RealSrSettings {
   static Future<void> saveMjnServiceBindLan(bool value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_keyMjnServiceBindLan, value);
+  }
+
+  /// MangaJaNai 在线安装的下载源（自动 / 官方 / 镜像）。
+  static const _keyMangaJaNaiDownloadSource =
+      'realsr_mangajanai_download_source';
+
+  /// 读取下载源；未设置或值失效时回退「自动」。
+  static Future<MangaJaNaiDownloadSource> loadMangaJaNaiDownloadSource() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getString(_keyMangaJaNaiDownloadSource);
+    for (final source in MangaJaNaiDownloadSource.values) {
+      if (source.name == saved) return source;
+    }
+    return MangaJaNaiDownloadSource.auto;
+  }
+
+  static Future<void> saveMangaJaNaiDownloadSource(
+    MangaJaNaiDownloadSource value,
+  ) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyMangaJaNaiDownloadSource, value.name);
   }
 
   /// 默认并发数：**全平台固定 1（单线程）**。

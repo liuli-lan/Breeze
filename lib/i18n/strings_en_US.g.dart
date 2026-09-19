@@ -1119,7 +1119,7 @@ class _Translations$realSr$en_US extends Translations$realSr$zh_CN {
 	@override String get mangaJaNaiPathModels => 'Models directory';
 	@override String get mangaJaNaiReady => 'MangaJaNai ready';
 	@override String get mangaJaNaiNotReady => 'MangaJaNai not ready';
-	@override String get mangaJaNaiMissingHint => 'Missing components (install online below, or run a job in the GUI at least once):';
+	@override String get mangaJaNaiMissingHint => 'Missing components (use the Runtime section below to install online, download manually or import an offline archive, or run a job in the GUI at least once):';
 	@override String get mangaJaNaiOnlineInstall => 'Install engine online';
 	@override String get mangaJaNaiOnlineInstallSubtitle => 'Fetch everything from official sources without installing the GUI (~4 GB)';
 	@override String get mangaJaNaiOnlineInstallAction => 'Install';
@@ -1141,6 +1141,33 @@ class _Translations$realSr$en_US extends Translations$realSr$zh_CN {
 	@override String get mangaJaNaiServiceCheck => 'Check / Start';
 	@override String mangaJaNaiServiceStatusFormat({required Object device, required Object models, required Object extra}) => '${device} · ${models} models loaded · ${extra}';
 	@override String get mangaJaNaiServiceFallbackHint => 'When not ready it falls back to the CLI path automatically: still works, just ~6 s per page instead of ~1.2 s';
+	@override String get mangaJaNaiRuntimeSection => 'Runtime (three deployment channels)';
+	@override String get mangaJaNaiRuntimeReady => 'Breeze-managed runtime is ready';
+	@override String get mangaJaNaiRuntimeNotInstalled => 'Breeze-managed runtime is not installed';
+	@override String get mangaJaNaiRuntimeNotInstalledSubtitle => 'Installing online downloads ~4 GB; you can also use the offline channels below: download manually and import, or import an archive copied from another machine';
+	@override String get mangaJaNaiRuntimeInstalling => 'Installing runtime';
+	@override String get mangaJaNaiRuntimeDelete => 'Delete Runtime';
+	@override String get mangaJaNaiRuntimeReinstall => 'Reinstall';
+	@override String get mangaJaNaiRuntimeInstall => 'Install Online';
+	@override String get mangaJaNaiRuntimeManualDownload => 'Manual runtime download';
+	@override String get mangaJaNaiRuntimeImport => 'Import runtime archive';
+	@override String get mangaJaNaiRuntimeImportSubtitle => 'Pick a mangajanai-win.7z you downloaded (or copied from another machine). The 7z format and the bundled Python, backend, ICC profiles and 16 model files are validated first; a failed check never touches the existing install. The resident service is stopped before importing — click “Check / Start” afterwards to bring it back';
+	@override String get mangaJaNaiRuntimeImportRunning => 'Validating and importing the runtime, please keep the app open…';
+	@override String get mangaJaNaiRuntimeImportDone => 'Runtime imported';
+	@override String get mangaJaNaiRuntimeImportFailed => 'Runtime import failed';
+	@override String get mangaJaNaiRuntimeDeleteConfirm => 'This deletes the Breeze-managed runtime (files/mangajanai, including Python, backend and models) and stops the resident service first. A locally installed MangaJaNaiConverterGui is not affected; the local engine needs a reinstall or import afterwards. Continue?';
+	@override String get mangaJaNaiRuntimeDeleted => 'Runtime deleted';
+	@override String get mangaJaNaiRuntimeDeleteFailed => 'Failed to delete runtime';
+	@override String get mangaJaNaiInstallStagePreflight => 'Running pre-install checks (disk space / GPU)…';
+	@override String get mangaJaNaiInstallStageService => 'Releasing resident service code…';
+	@override String get mangaJaNaiInstallCancelled => 'Installation cancelled';
+	@override String get mangaJaNaiDownloadSource => 'Download source';
+	@override String get mangaJaNaiDownloadSourceAuto => 'Auto (mirror first, fall back to official on failure)';
+	@override String get mangaJaNaiDownloadSourceOfficial => 'Official (pypi.org / pytorch.org / github.com)';
+	@override String get mangaJaNaiDownloadSourceMirror => 'Mirror (Tsinghua TUNA + gh-proxy)';
+	@override String get mangaJaNaiDownloadSourceAutoNote => 'Prefers mirrors for speed; if a mirror fails or is missing a package it automatically retries with the official source, no manual work needed';
+	@override String get mangaJaNaiDownloadSourceOfficialNote => 'Download directly from official sources; usually the right choice when you have a direct overseas connection or a proxy';
+	@override String get mangaJaNaiDownloadSourceMirrorNote => 'Use China mirrors for everything; a mirror may be down or lack torch cu128, in which case it still falls back to the official source';
 }
 
 // Path: about
@@ -2511,7 +2538,7 @@ extension on TranslationsEnUs {
 			'realSr.mangaJaNaiPathModels' => 'Models directory',
 			'realSr.mangaJaNaiReady' => 'MangaJaNai ready',
 			'realSr.mangaJaNaiNotReady' => 'MangaJaNai not ready',
-			'realSr.mangaJaNaiMissingHint' => 'Missing components (install online below, or run a job in the GUI at least once):',
+			'realSr.mangaJaNaiMissingHint' => 'Missing components (use the Runtime section below to install online, download manually or import an offline archive, or run a job in the GUI at least once):',
 			'realSr.mangaJaNaiOnlineInstall' => 'Install engine online',
 			'realSr.mangaJaNaiOnlineInstallSubtitle' => 'Fetch everything from official sources without installing the GUI (~4 GB)',
 			'realSr.mangaJaNaiOnlineInstallAction' => 'Install',
@@ -2533,6 +2560,33 @@ extension on TranslationsEnUs {
 			'realSr.mangaJaNaiServiceCheck' => 'Check / Start',
 			'realSr.mangaJaNaiServiceStatusFormat' => ({required Object device, required Object models, required Object extra}) => '${device} · ${models} models loaded · ${extra}',
 			'realSr.mangaJaNaiServiceFallbackHint' => 'When not ready it falls back to the CLI path automatically: still works, just ~6 s per page instead of ~1.2 s',
+			'realSr.mangaJaNaiRuntimeSection' => 'Runtime (three deployment channels)',
+			'realSr.mangaJaNaiRuntimeReady' => 'Breeze-managed runtime is ready',
+			'realSr.mangaJaNaiRuntimeNotInstalled' => 'Breeze-managed runtime is not installed',
+			'realSr.mangaJaNaiRuntimeNotInstalledSubtitle' => 'Installing online downloads ~4 GB; you can also use the offline channels below: download manually and import, or import an archive copied from another machine',
+			'realSr.mangaJaNaiRuntimeInstalling' => 'Installing runtime',
+			'realSr.mangaJaNaiRuntimeDelete' => 'Delete Runtime',
+			'realSr.mangaJaNaiRuntimeReinstall' => 'Reinstall',
+			'realSr.mangaJaNaiRuntimeInstall' => 'Install Online',
+			'realSr.mangaJaNaiRuntimeManualDownload' => 'Manual runtime download',
+			'realSr.mangaJaNaiRuntimeImport' => 'Import runtime archive',
+			'realSr.mangaJaNaiRuntimeImportSubtitle' => 'Pick a mangajanai-win.7z you downloaded (or copied from another machine). The 7z format and the bundled Python, backend, ICC profiles and 16 model files are validated first; a failed check never touches the existing install. The resident service is stopped before importing — click “Check / Start” afterwards to bring it back',
+			'realSr.mangaJaNaiRuntimeImportRunning' => 'Validating and importing the runtime, please keep the app open…',
+			'realSr.mangaJaNaiRuntimeImportDone' => 'Runtime imported',
+			'realSr.mangaJaNaiRuntimeImportFailed' => 'Runtime import failed',
+			'realSr.mangaJaNaiRuntimeDeleteConfirm' => 'This deletes the Breeze-managed runtime (files/mangajanai, including Python, backend and models) and stops the resident service first. A locally installed MangaJaNaiConverterGui is not affected; the local engine needs a reinstall or import afterwards. Continue?',
+			'realSr.mangaJaNaiRuntimeDeleted' => 'Runtime deleted',
+			'realSr.mangaJaNaiRuntimeDeleteFailed' => 'Failed to delete runtime',
+			'realSr.mangaJaNaiInstallStagePreflight' => 'Running pre-install checks (disk space / GPU)…',
+			'realSr.mangaJaNaiInstallStageService' => 'Releasing resident service code…',
+			'realSr.mangaJaNaiInstallCancelled' => 'Installation cancelled',
+			'realSr.mangaJaNaiDownloadSource' => 'Download source',
+			'realSr.mangaJaNaiDownloadSourceAuto' => 'Auto (mirror first, fall back to official on failure)',
+			'realSr.mangaJaNaiDownloadSourceOfficial' => 'Official (pypi.org / pytorch.org / github.com)',
+			'realSr.mangaJaNaiDownloadSourceMirror' => 'Mirror (Tsinghua TUNA + gh-proxy)',
+			'realSr.mangaJaNaiDownloadSourceAutoNote' => 'Prefers mirrors for speed; if a mirror fails or is missing a package it automatically retries with the official source, no manual work needed',
+			'realSr.mangaJaNaiDownloadSourceOfficialNote' => 'Download directly from official sources; usually the right choice when you have a direct overseas connection or a proxy',
+			'realSr.mangaJaNaiDownloadSourceMirrorNote' => 'Use China mirrors for everything; a mirror may be down or lack torch cu128, in which case it still falls back to the official source',
 			'about.title' => 'About app',
 			'about.version' => ({required Object version}) => 'Version: ${version}',
 			'about.loading' => 'Loading...',
@@ -2597,6 +2651,8 @@ extension on TranslationsEnUs {
 			'more.comicFollow' => 'Updates',
 			'more.changelog' => 'Changelog',
 			'search.title' => 'Search',
+			_ => null,
+		} ?? switch (path) {
 			'search.searchHint' => 'Search...',
 			'search.selectSource' => 'Select Source',
 			'search.advancedSearchNotSupported' => 'Current plugin does not support advanced search',
@@ -2624,8 +2680,6 @@ extension on TranslationsEnUs {
 			'search.dataSource' => 'Data Source',
 			'search.sortBy' => 'Sort By',
 			'search.newestToOldest' => 'Newest to oldest',
-			_ => null,
-		} ?? switch (path) {
 			'search.oldestToNewest' => 'Oldest to newest',
 			'search.mostLikes' => 'Most likes',
 			'search.mostViews' => 'Most views',

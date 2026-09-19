@@ -10,11 +10,14 @@ import 'package:zephyr/page/setting/common/setting_ui.dart';
 import 'package:zephyr/page/setting/real_sr/service/android_ncnn_model_config.dart';
 import 'package:zephyr/page/setting/real_sr/service/desktop_ncnn_model_config.dart';
 import 'package:zephyr/page/setting/real_sr/service/mangajanai_bootstrap.dart';
+import 'package:zephyr/page/setting/real_sr/service/mangajanai_downloader.dart';
 import 'package:zephyr/page/setting/real_sr/service/mangajanai_engine.dart';
 import 'package:zephyr/page/setting/real_sr/service/mangajanai_remote.dart';
+import 'package:zephyr/page/setting/real_sr/service/mangajanai_runtime.dart';
 import 'package:zephyr/page/setting/real_sr/service/mjn_local_service.dart';
 import 'package:zephyr/page/setting/real_sr/service/real_sr_settings.dart';
 import 'package:zephyr/page/setting/real_sr/service/real_sr_super_resolution.dart';
+import 'package:zephyr/page/setting/real_sr/widgets/deploy_channel_tiles.dart';
 import 'package:zephyr/type/enum.dart';
 import 'package:zephyr/util/coreml_model_config.dart';
 import 'package:zephyr/widgets/fluent_dropdown.dart';
@@ -83,6 +86,22 @@ class _RealSrSettingPageState extends State<RealSrSettingPage> {
 
   bool _installingEngine = false;
   String? _installStatusText;
+
+  /// 在线安装的取消令牌（① 通道）；点击「取消」后会被替换，旧的不再影响下一次安装。
+  MangaJaNaiCancelToken _installCancel = MangaJaNaiCancelToken();
+
+  /// 在线安装的下载源（自动 / 官方 / 镜像），落在 SharedPreferences。
+  MangaJaNaiDownloadSource _downloadSource = MangaJaNaiDownloadSource.auto;
+
+  /// Breeze 托管运行环境（`<files>/mangajanai/`）的缺失项；空 = 三通道里的①已就绪。
+  ///
+  /// 与 [_mangaJaNaiMissing]（引擎整体是否可用，可能是 GUI 装的）是**两个概念**：
+  /// 本机就是「GUI 装好了、Breeze 托管目录没有」，两者必须分开显示，否则用户会
+  /// 看到「已就绪」却找不到安装/导入入口。
+  List<String> _runtimeMissing = const [];
+
+  /// 是否正在导入运行环境离线包（③ 通道）。
+  bool _importingRuntime = false;
   CoreMLModelFamily _coreMLFamily = CoreMLModelConfig.defaultFamily;
   CoreMLModelVariant _coreMLVariant = CoreMLModelConfig.defaultVariant;
   bool _isAvailable = false;
@@ -165,6 +184,7 @@ class _RealSrSettingPageState extends State<RealSrSettingPage> {
     final mangaJaNaiModelsDir = await RealSrSettings.loadMangaJaNaiModelsDir();
     final remoteBaseUrl = await RealSrSettings.loadMangaJaNaiRemoteBaseUrl();
     final remoteApiKey = await RealSrSettings.loadMangaJaNaiRemoteApiKey();
+    final downloadSource = await RealSrSettings.loadMangaJaNaiDownloadSource();
     final results = await Future.wait([
       RealSrSettings.loadAutoUpscale(),
       RealSrSettings.loadResolutionThreshold(),
@@ -192,6 +212,7 @@ class _RealSrSettingPageState extends State<RealSrSettingPage> {
       _mangaJaNaiModelsDir = mangaJaNaiModelsDir;
       _remoteBaseUrl = remoteBaseUrl;
       _remoteApiKey = remoteApiKey;
+      _downloadSource = downloadSource;
       _coreMLFamily = family;
       _coreMLVariant = variant;
       _loading = false;
@@ -255,9 +276,26 @@ class _RealSrSettingPageState extends State<RealSrSettingPage> {
     setState(() => _mangaJaNaiGrayscaleThreshold = value);
   }
 
+  /// 切换在线安装的下载源（自动 / 官方 / 镜像）。
+  Future<void> _setDownloadSource(MangaJaNaiDownloadSource value) async {
+    await RealSrSettings.saveMangaJaNaiDownloadSource(value);
+    setState(() => _downloadSource = value);
+  }
+
+  /// 取消正在进行的在线安装（① 通道）。
+  void _cancelInstall() => _installCancel.cancel();
+
   Future<void> _refreshMangaJaNaiStatus() async {
     final missing = await MangaJaNaiEngine.missingRequirements();
-    if (mounted) setState(() => _mangaJaNaiMissing = missing);
+    final runtimeMissing = Platform.isWindows
+        ? await MangaJaNaiRuntime.missingParts()
+        : const <String>[];
+    if (mounted) {
+      setState(() {
+        _mangaJaNaiMissing = missing;
+        _runtimeMissing = runtimeMissing;
+      });
+    }
 
     // 引擎齐全时顺手把**本机常驻服务**拉起来并回显状态。
     //
@@ -513,12 +551,18 @@ class _RealSrSettingPageState extends State<RealSrSettingPage> {
     setState(() {
       _installingEngine = true;
       _installStatusText = null;
+      // 每次安装用一枚新令牌：上一枚可能已经 cancel 过，不能复用。
+      _installCancel = MangaJaNaiCancelToken();
     });
     try {
-      await MangaJaNaiBootstrap.install(
+      await MangaJaNaiRuntime.install(
+        cancelToken: _installCancel,
+        source: _downloadSource,
         onProgress: (stage, {received, total, detail}) {
           if (!mounted) return;
           final base = switch (stage) {
+            MangaJaNaiInstallStage.preflight =>
+              t.realSr.mangaJaNaiInstallStagePreflight,
             MangaJaNaiInstallStage.python =>
               t.realSr.mangaJaNaiInstallStagePython,
             MangaJaNaiInstallStage.deps => t.realSr.mangaJaNaiInstallStageDeps,
@@ -528,6 +572,8 @@ class _RealSrSettingPageState extends State<RealSrSettingPage> {
               t.realSr.mangaJaNaiInstallStageBackend,
             MangaJaNaiInstallStage.models =>
               t.realSr.mangaJaNaiInstallStageModels,
+            MangaJaNaiInstallStage.service =>
+              t.realSr.mangaJaNaiInstallStageService,
           };
           final progress = received != null && total != null && total > 0
               ? ' ${(received / 1024 / 1024).toStringAsFixed(0)}/'
@@ -542,10 +588,22 @@ class _RealSrSettingPageState extends State<RealSrSettingPage> {
       );
       if (!mounted) return;
       showSuccessToast(t.realSr.mangaJaNaiInstallDone);
+    } on MangaJaNaiInstallCancelled {
+      // 用户主动取消：不算失败，给一个中性的提示即可。
+      if (mounted) showInfoToast(t.realSr.mangaJaNaiInstallCancelled);
     } catch (e, s) {
-      logger.e('MangaJaNai 在线安装失败', error: e, stackTrace: s);
-      if (mounted) {
-        showErrorToast('${t.realSr.mangaJaNaiInstallFailed}: $e');
+      // 取消也可能被 classifyInstallError 包一层（kind == cancelled），
+      // 两种都要认；其余才算真正的失败。
+      final cancelled =
+          e is MangaJaNaiInstallException &&
+          e.kind == MangaJaNaiFailureKind.cancelled;
+      if (cancelled) {
+        if (mounted) showInfoToast(t.realSr.mangaJaNaiInstallCancelled);
+      } else {
+        logger.e('MangaJaNai 在线安装失败', error: e, stackTrace: s);
+        if (mounted) {
+          showErrorToast('${t.realSr.mangaJaNaiInstallFailed}: $e');
+        }
       }
     } finally {
       if (mounted) {
@@ -704,18 +762,100 @@ class _RealSrSettingPageState extends State<RealSrSettingPage> {
     }
   }
 
-  Future<void> _openManualDownloadUrl() async {
-    final url = RealSrSuperResolution.manualDownloadUrl;
-    if (url == null) {
-      showErrorToast(t.realSr.manualDownloadUnsupported);
-      return;
-    }
+  /// 打开一个下载直链（② 通道共用的动作）。
+  ///
+  /// 直链由调用方给出：内置模型来自 `RealSrSuperResolution.manualDownloadUrl`，
+  /// 运行环境来自 `MangaJaNaiRuntime.manualDownloadUrl`。
+  Future<void> _openDownloadUrl(String url) async {
     final opened = await launchUrl(
       Uri.parse(url),
       mode: LaunchMode.externalApplication,
     );
     if (!opened && mounted) {
       showErrorToast(t.realSr.openDownloadUrlFailed);
+    }
+  }
+
+  /// 删除 Breeze 托管的运行环境（① 通道的就绪态动作）。
+  ///
+  /// 只删 `<files>/mangajanai/`，本机 GUI 安装不受影响；常驻服务会被先停掉
+  /// （python.exe 被占用时删不掉），删除后引擎会自动回退到 GUI 安装（若有）。
+  Future<void> _deleteLocalRuntime() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(t.realSr.mangaJaNaiRuntimeDelete),
+        content: Text(t.realSr.mangaJaNaiRuntimeDeleteConfirm),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(t.common.cancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(t.realSr.mangaJaNaiRuntimeDelete),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _installingEngine = true);
+    try {
+      await MangaJaNaiRuntime.uninstall();
+      if (mounted) showSuccessToast(t.realSr.mangaJaNaiRuntimeDeleted);
+    } catch (e, s) {
+      logger.e('运行环境删除失败', error: e, stackTrace: s);
+      if (mounted) {
+        showErrorToast('${t.realSr.mangaJaNaiRuntimeDeleteFailed}: $e');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _installingEngine = false);
+        await _loadSettings();
+      }
+    }
+  }
+
+  /// 导入离线运行环境包（③ 通道）。
+  ///
+  /// 校验与替换都在 `MangaJaNaiRuntime.importArchive` 里：内容不通过**不会**改动
+  /// 现有安装，所以这里不需要额外的「确认」对话框 —— 最坏情况就是报错。
+  Future<void> _importLocalRuntime() async {
+    final typeGroup = const XTypeGroup(label: '7z', extensions: ['7z']);
+    final XFile? file;
+    try {
+      file = await openFile(acceptedTypeGroups: [typeGroup]);
+    } catch (e) {
+      showErrorToast('${t.realSr.mangaJaNaiRuntimeImportFailed}: $e');
+      return;
+    }
+    if (file == null) return;
+
+    setState(() => _importingRuntime = true);
+    showInfoToast(t.realSr.mangaJaNaiRuntimeImportRunning);
+    try {
+      await MangaJaNaiRuntime.importArchive(
+        file.path,
+        onProgress: (stage, {received, total, detail}) {
+          if (!mounted || detail == null) return;
+          setState(() => _installStatusText = detail);
+        },
+      );
+      if (mounted) showSuccessToast(t.realSr.mangaJaNaiRuntimeImportDone);
+    } catch (e, s) {
+      logger.e('运行环境导入失败', error: e, stackTrace: s);
+      if (mounted) {
+        showErrorToast('${t.realSr.mangaJaNaiRuntimeImportFailed}: $e');
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _importingRuntime = false;
+          _installStatusText = null;
+        });
+        await _loadSettings();
+      }
     }
   }
 
@@ -936,28 +1076,56 @@ class _RealSrSettingPageState extends State<RealSrSettingPage> {
       ),
       _buildMangaJaNaiStatusTile(),
       _buildLocalServiceTile(),
-      if (_mangaJaNaiMissing.isNotEmpty)
-        ListTile(
-          leading: Icon(
-            _installingEngine
-                ? Icons.downloading_outlined
-                : Icons.cloud_download_outlined,
-          ),
-          title: Text(t.realSr.mangaJaNaiOnlineInstall),
-          subtitle: Text(
-            _installStatusText ?? t.realSr.mangaJaNaiOnlineInstallSubtitle,
-          ),
-          trailing: _installingEngine
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : TextButton(
-                  onPressed: _installEngineOnline,
-                  child: Text(t.realSr.mangaJaNaiOnlineInstallAction),
-                ),
+      // 运行环境的三种部署通道（方案 §12）：① 在线安装 ② 手动下载 ③ 导入离线包。
+      // 取代原来那个单独的「在线安装引擎」瓦片 —— 两套入口并存只会让人犹豫。
+      settingSectionTitle(context, t.realSr.mangaJaNaiRuntimeSection),
+      // 下载源选择：在线安装前可换镜像（镜像站失效/代理不通时用户不用自己试）。
+      ListTile(
+        leading: const Icon(Icons.public_outlined),
+        title: Text(t.realSr.mangaJaNaiDownloadSource),
+        subtitle: Text(_downloadSource.description),
+        trailing: FluentDropdown<MangaJaNaiDownloadSource>(
+          value: _downloadSource,
+          displayValue: _downloadSource.label,
+          items: {
+            for (final source in MangaJaNaiDownloadSource.values)
+              source: source.label,
+          },
+          // 安装进行中禁用：中途换源会和新安装取到的源不一致。
+          enabled: !_installingEngine,
+          onChanged: _setDownloadSource,
         ),
+      ),
+      DeployChannelTiles(
+        texts: DeployChannelTexts(
+          busyTitle: t.realSr.mangaJaNaiRuntimeInstalling,
+          readyTitle: t.realSr.mangaJaNaiRuntimeReady,
+          deleteAction: t.realSr.mangaJaNaiRuntimeDelete,
+          reinstallAction: t.realSr.mangaJaNaiRuntimeReinstall,
+          notReadyTitle: t.realSr.mangaJaNaiRuntimeNotInstalled,
+          notReadySubtitle: t.realSr.mangaJaNaiRuntimeNotInstalledSubtitle,
+          installAction: t.realSr.mangaJaNaiRuntimeInstall,
+          manualTitle: t.realSr.mangaJaNaiRuntimeManualDownload,
+          manualUnsupported: t.realSr.manualDownloadUnsupported,
+          openUrlAction: t.realSr.openDownloadUrl,
+          importTitle: t.realSr.mangaJaNaiRuntimeImport,
+          importSubtitle: t.realSr.mangaJaNaiRuntimeImportSubtitle,
+          importAction: t.realSr.importModelAction,
+        ),
+        ready: _runtimeMissing.isEmpty,
+        downloading: _installingEngine,
+        statusText: _installStatusText ?? '',
+        manualDownloadUrl: MangaJaNaiRuntime.manualDownloadUrl,
+        importing: _importingRuntime,
+        importStatusText: _importingRuntime ? (_installStatusText ?? '') : '',
+        onCancel: _installingEngine ? _cancelInstall : null,
+        cancelLabel: _installingEngine ? t.common.cancel : null,
+        onDownload: _installEngineOnline,
+        onDelete: _deleteLocalRuntime,
+        onImport: _importLocalRuntime,
+        onOpenManualDownload: () =>
+            _openDownloadUrl(MangaJaNaiRuntime.manualDownloadUrl),
+      ),
       // NVIDIA 的「CUDA - 系统内存回退策略」若保持默认，显存不足时会回退到
       // 系统内存，超分速度差一个数量级。这是驱动侧设置，应用无法代劳，只能提示。
       ListTile(
@@ -1035,95 +1203,6 @@ class _RealSrSettingPageState extends State<RealSrSettingPage> {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildModelManagementTile() {
-    if (_downloading) {
-      return ListTile(
-        leading: const Icon(Icons.downloading_outlined),
-        title: Text(t.realSr.downloadingModel),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 8),
-            LinearProgressIndicator(value: _downloadProgress),
-            const SizedBox(height: 4),
-            Text('${(_downloadProgress * 100).toStringAsFixed(1)}%'),
-          ],
-        ),
-      );
-    }
-
-    if (_isAvailable) {
-      return ListTile(
-        leading: Icon(
-          Icons.check_circle,
-          color: Theme.of(context).colorScheme.primary,
-        ),
-        title: Text(t.realSr.modelReady),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextButton(
-              onPressed: _deleteModel,
-              child: Text(t.realSr.deleteModel),
-            ),
-            TextButton(
-              onPressed: _downloadModel,
-              child: Text(t.realSr.redownload),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return ListTile(
-      leading: const Icon(Icons.warning_amber_rounded),
-      title: Text(t.realSr.modelNotDownloaded),
-      subtitle: Text(t.realSr.modelNotDownloadedSubtitle),
-      trailing: ElevatedButton(
-        onPressed: _downloadModel,
-        child: Text(t.realSr.downloadModel),
-      ),
-    );
-  }
-
-  Widget _buildManualDownloadTile() {
-    final url = RealSrSuperResolution.manualDownloadUrl;
-    if (url == null) {
-      return ListTile(
-        leading: const Icon(Icons.open_in_browser_outlined),
-        title: Text(t.realSr.manualDownload),
-        subtitle: Text(t.realSr.manualDownloadUnsupported),
-      );
-    }
-    return ListTile(
-      leading: const Icon(Icons.open_in_browser_outlined),
-      title: Text(t.realSr.manualDownload),
-      subtitle: Text(url, maxLines: 2, overflow: TextOverflow.ellipsis),
-      trailing: TextButton(
-        onPressed: _openManualDownloadUrl,
-        child: Text(t.realSr.openDownloadUrl),
-      ),
-    );
-  }
-
-  Widget _buildImportModelTile() {
-    return ListTile(
-      leading: const Icon(Icons.file_open_outlined),
-      title: Text(t.realSr.importModel),
-      subtitle: Text(t.realSr.importModelSubtitle),
-      trailing: _importing
-          ? const SizedBox(
-              width: 22,
-              height: 22,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )
-          : TextButton(
-              onPressed: _importModel,
-              child: Text(t.realSr.importModelAction),
-            ),
     );
   }
 
@@ -1248,9 +1327,41 @@ class _RealSrSettingPageState extends State<RealSrSettingPage> {
                   const SizedBox(height: 8),
                   const Divider(height: 1, thickness: 0.3),
                   settingSectionTitle(context, t.realSr.modelManagementSection),
-                  _buildModelManagementTile(),
-                  _buildManualDownloadTile(),
-                  _buildImportModelTile(),
+                  // 与「运行环境」共用同一组三通道瓦片，只是目标物换成内置模型。
+                  DeployChannelTiles(
+                    texts: DeployChannelTexts(
+                      busyTitle: t.realSr.downloadingModel,
+                      readyTitle: t.realSr.modelReady,
+                      deleteAction: t.realSr.deleteModel,
+                      reinstallAction: t.realSr.redownload,
+                      notReadyTitle: t.realSr.modelNotDownloaded,
+                      notReadySubtitle: t.realSr.modelNotDownloadedSubtitle,
+                      installAction: t.realSr.downloadModel,
+                      manualTitle: t.realSr.manualDownload,
+                      manualUnsupported: t.realSr.manualDownloadUnsupported,
+                      openUrlAction: t.realSr.openDownloadUrl,
+                      importTitle: t.realSr.importModel,
+                      importSubtitle: t.realSr.importModelSubtitle,
+                      importAction: t.realSr.importModelAction,
+                    ),
+                    ready: _isAvailable,
+                    downloading: _downloading,
+                    progress: _downloadProgress,
+                    statusText: '',
+                    manualDownloadUrl: RealSrSuperResolution.manualDownloadUrl,
+                    importing: _importing,
+                    onDownload: _downloadModel,
+                    onDelete: _deleteModel,
+                    onImport: _importModel,
+                    onOpenManualDownload: () {
+                      final url = RealSrSuperResolution.manualDownloadUrl;
+                      if (url == null) {
+                        showErrorToast(t.realSr.manualDownloadUnsupported);
+                        return;
+                      }
+                      _openDownloadUrl(url);
+                    },
+                  ),
                 ],
                 const SizedBox(height: 32),
               ],

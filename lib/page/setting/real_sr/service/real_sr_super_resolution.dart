@@ -328,7 +328,7 @@ class RealSrSuperResolution {
           await modelsDir.delete(recursive: true);
         }
         await modelsDir.create(recursive: true);
-        await _moveDirectory(
+        await moveDirectory(
           Directory(p.join(tempDir.path, CoreMLModelConfig.archiveSubDir)),
           destDir,
         );
@@ -338,7 +338,7 @@ class RealSrSuperResolution {
           await Directory(destDir).delete(recursive: true);
         }
         await Directory(p.dirname(destDir)).create(recursive: true);
-        await _moveDirectory(tempDir, Directory(destDir));
+        await moveDirectory(tempDir, Directory(destDir));
       }
 
       // Linux / macOS 需要给可执行文件授权
@@ -429,17 +429,21 @@ class RealSrSuperResolution {
   }
 
   /// 把目录移动到目标位置；跨磁盘/分区失败时退回复制后删除。
-  static Future<void> _moveDirectory(Directory from, Directory to) async {
+  ///
+  /// 公开给 `MangaJaNaiRuntime.importArchive` 复用：导入离线包时的「备份 → 移入 →
+  /// 失败回滚」用的是同一套搬目录语义，没有理由实现第二份。
+  static Future<void> moveDirectory(Directory from, Directory to) async {
     try {
       await from.rename(to.path);
     } on FileSystemException {
       await to.create(recursive: true);
-      await _copyDirectoryContents(from, to);
+      await copyDirectoryContents(from, to);
       await from.delete(recursive: true);
     }
   }
 
-  static Future<void> _copyDirectoryContents(
+  /// 把 [from] 下的内容递归复制到 [to] 里。
+  static Future<void> copyDirectoryContents(
     Directory from,
     Directory to,
   ) async {
@@ -447,7 +451,7 @@ class RealSrSuperResolution {
       final targetPath = p.join(to.path, p.basename(entity.path));
       if (entity is Directory) {
         await Directory(targetPath).create(recursive: true);
-        await _copyDirectoryContents(entity, Directory(targetPath));
+        await copyDirectoryContents(entity, Directory(targetPath));
       } else if (entity is File) {
         await entity.copy(targetPath);
       }

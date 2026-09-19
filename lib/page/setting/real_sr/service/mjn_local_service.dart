@@ -322,6 +322,13 @@ class MjnLocalService {
     return dir;
   }
 
+  /// 公开的服务代码释放入口（幂等），供安装/导入流程在完成时调用。
+  ///
+  /// 为什么需要它：导入离线包会**整体替换** `<files>/mangajanai/`，把此前释放的
+  /// `service/` 一并抹掉 —— 装完/导完立刻把服务代码放回去，用户就不用经历
+  /// 「装完第一次起服务时才发现 service/ 没了」这种隐式等待。
+  Future<String> releaseServiceCode() => _releaseServiceCode();
+
   static bool _bytesEqual(List<int> a, List<int> b) {
     if (a.length != b.length) return false;
     for (var i = 0; i < a.length; i++) {
