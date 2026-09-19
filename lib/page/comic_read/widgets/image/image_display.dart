@@ -70,6 +70,12 @@ class _ImageDisplayState extends State<ImageDisplay> {
   bool _einkDelayFinished = true;
   bool _wasRowActive = false;
 
+  /// 本组件是否已经成功出过帧。
+  ///
+  /// 用于区分「首次加载」（该显示占位符）与「已显示过、只是正在换图」
+  /// （必须继续沿用上一帧）。见 [build] 中 frameBuilder 的说明。
+  bool _hasShownImage = false;
+
   bool get isColumn => widget.isColumn;
 
   @override
@@ -117,6 +123,8 @@ class _ImageDisplayState extends State<ImageDisplay> {
       _stopListening();
       _rawWidth = null;
       _rawHeight = null;
+      // 换了图：上一帧内容与当前图片无关，占位符逻辑重新生效。
+      _hasShownImage = false;
       _resolveImageMeta();
     }
 
@@ -278,48 +286,44 @@ class _ImageDisplayState extends State<ImageDisplay> {
             alignment: widget.imageAlignment,
             gaplessPlayback: true,
             frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
-              if (wasSynchronouslyLoaded || frame != null) {
-                if (!isColumn &&
-                    canUseEinkMask &&
-                    isActiveRowImage &&
-                    !_einkDelayFinished) {
-                  return Container(width: width, color: Colors.white);
-                }
-                return child;
+              final hasFrame = wasSynchronouslyLoaded || frame != null;
+              if (hasFrame) _hasShownImage = true;
+
+              // 墨水屏优化：翻页后先白屏、延迟结束再出图（行模式，用户显式开启）。
+              if (canUseEinkMask && isActiveRowImage && !_einkDelayFinished) {
+                return Container(width: width, color: Colors.white);
               }
 
-              if (isColumn) {
-                return Container(
-                  width: width,
-                  color: backgroundColor,
-                  alignment: Alignment.center,
-                  child: SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: progressColor,
-                    ),
+              if (hasFrame) return child;
+
+              // ★ 关键：provider 重新解析（超分原地覆盖内容后 revision 变化、
+              // 或组件重挂载后换 key）期间，[Image] 因为 gaplessPlayback 为 true
+              // **不会**清空 _imageInfo —— 传进来的 child 里仍然是上一帧的位图。
+              //
+              // 过去这里无条件返回占位符，等于把 gaplessPlayback 的保帧能力丢掉：
+              // 于是每次换 key 重新解码（解码是异步的，大图要几十到几百毫秒）
+              // 都会把已经显示好的画面闪成一块背景色 + 小转圈 ——
+              // 表现为「翻页 / 捏合缩放 / 呼出菜单 / 翻一半滑回去时屏幕闪一下」，
+              // 因为超分热替换就发生在这些操作的前后一瞬。
+              //
+              // 正确做法：只要本组件出过帧就直接沿用 child（旧图继续显示），
+              // 新帧解码完成后 [Image] 自然会用新内容重建；占位符只服务于
+              // 「从未出过帧」的首次加载。
+              if (_hasShownImage) return child;
+
+              return Container(
+                width: width,
+                color: backgroundColor,
+                alignment: Alignment.center,
+                child: SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: progressColor,
                   ),
-                );
-              } else {
-                if (canUseEinkMask && isActiveRowImage && !_einkDelayFinished) {
-                  return Container(width: width, color: Colors.white);
-                }
-                return Container(
-                  width: width,
-                  color: backgroundColor,
-                  alignment: Alignment.center,
-                  child: SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: progressColor,
-                    ),
-                  ),
-                );
-              }
+                ),
+              );
             },
           ),
         );
