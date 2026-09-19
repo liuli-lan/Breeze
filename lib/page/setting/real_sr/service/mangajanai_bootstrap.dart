@@ -88,6 +88,14 @@ class MangaJaNaiBootstrap {
 
   /// 其余依赖：后端 `pyproject.toml` 锁定的版本，均为 PyPI 正式包
   /// （torch / torchvision 之外的全部）。
+  ///
+  /// `pyvips` 不在这里：它在 PyPI 只有 sdist（无 Windows wheel），需要
+  /// `--no-build-isolation` 单独安装，见 [_pyvipsRequirement]。
+  ///
+  /// `spandrel*` 也不在这里：它们声明 `torch` / `torchvision`，若与其它依赖
+  /// 同批安装，pip 会先拉一个 PyPI 上的 CPU 版 torch（实测 124MB），随后又被
+  /// 第 3 阶段的 cu128 版覆盖。拆到 torch 之后安装，pip 看到依赖已满足就不会
+  /// 再动它。见 [_torchDependentRequirements]。
   static const List<String> _pypiRequirements = [
     'chainner_ext==0.3.10',
     'numpy==2.2.5',
@@ -95,13 +103,26 @@ class MangaJaNaiBootstrap {
     'packaging==25.0',
     'psutil==6.0.0',
     'pynvml==11.5.3',
-    'pyvips==3.0.0',
     'pyvips-binary==8.16.1',
     'rarfile==4.2',
     'sanic==24.6.0',
-    'spandrel_extra_arches==0.2.0',
-    'spandrel==0.4.1',
   ];
+
+  /// 依赖 torch / torchvision 的包，必须在 cu128 torch 装好之后再装。
+  static const List<String> _torchDependentRequirements = [
+    'spandrel==0.4.1',
+    'spandrel_extra_arches==0.2.0',
+  ];
+
+  /// 纯 Python、只发布 sdist 的依赖，必须用 `--no-build-isolation` 装。
+  ///
+  /// 嵌入式 Python 的 `._pth` 会替换默认 sys.path，pip 的隔离构建环境拿不到
+  /// `setuptools.build_meta`，于是 `pyvips` 现场构建必失败。解法是先装好
+  /// [_buildTools] 再关掉隔离，本机实测可成功产出 wheel。
+  static const String _pyvipsRequirement = 'pyvips==3.0.0';
+
+  /// 供 sdist 现场构建用的构建工具。
+  static const List<String> _buildTools = ['setuptools', 'wheel'];
 
   /// 后端源码归档（约 1 MB）：直接使用上游官方仓库 main 分支 ZIP。
   ///
@@ -329,6 +350,31 @@ class MangaJaNaiBootstrap {
     );
     checkCancel();
 
+    // pyvips 只有 sdist：先备好构建工具，再关掉构建隔离单独装。
+    // 少了这两步，嵌入式 Python 上会以
+    // `BackendUnavailable: Cannot import 'setuptools.build_meta'` 收场。
+    await _runPipWithFallback(
+      pythonExe: pythonExe,
+      packages: _buildTools,
+      indexCandidates: mirrors.pypiIndexCandidates(source),
+      workingDirectory: pythonDir,
+      onProgress: onProgress,
+      stage: MangaJaNaiInstallStage.deps,
+      cancelToken: cancelToken,
+    );
+    checkCancel();
+    await _runPipWithFallback(
+      pythonExe: pythonExe,
+      packages: const [_pyvipsRequirement],
+      indexCandidates: mirrors.pypiIndexCandidates(source),
+      workingDirectory: pythonDir,
+      onProgress: onProgress,
+      stage: MangaJaNaiInstallStage.deps,
+      cancelToken: cancelToken,
+      extraArgs: const ['--no-build-isolation'],
+    );
+    checkCancel();
+
     // ---- 阶段 3：torch / torchvision（大头，~2.5GB）----
     //
     // 注意：pip 自己下载 wheel，**无法断点续传**（方案 §5 第 4 条只对我们的
@@ -338,6 +384,19 @@ class MangaJaNaiBootstrap {
       pythonExe: pythonExe,
       packages: ['torch==$_torchVersion', 'torchvision==$_torchvisionVersion'],
       indexCandidates: mirrors.torchIndexCandidates(source),
+      workingDirectory: pythonDir,
+      onProgress: onProgress,
+      stage: MangaJaNaiInstallStage.torch,
+      cancelToken: cancelToken,
+    );
+    checkCancel();
+
+    // spandrel* 声明依赖 torch / torchvision。放到 cu128 之后装，pip 看到
+    // 依赖已满足就不会再解析出 PyPI 的 CPU 版 torch。
+    await _runPipWithFallback(
+      pythonExe: pythonExe,
+      packages: _torchDependentRequirements,
+      indexCandidates: mirrors.pypiIndexCandidates(source),
       workingDirectory: pythonDir,
       onProgress: onProgress,
       stage: MangaJaNaiInstallStage.torch,
@@ -367,10 +426,7 @@ class MangaJaNaiBootstrap {
         await extractDir.create(recursive: true);
         await _extractZipSmall(archivePath, extractDir.path);
 
-        final subDirs = extractDir
-            .listSync()
-            .whereType<Directory>()
-            .toList();
+        final subDirs = extractDir.listSync().whereType<Directory>().toList();
         final backendSource = subDirs.length == 1
             ? Directory(p.join(subDirs.single.path, 'backend'))
             : Directory(p.join(extractDir.path, 'backend'));
@@ -722,6 +778,7 @@ class MangaJaNaiBootstrap {
     required MangaJaNaiInstallProgress? onProgress,
     required MangaJaNaiInstallStage stage,
     required MangaJaNaiCancelToken? cancelToken,
+    List<String> extraArgs = const [],
   }) async {
     final candidates = indexCandidates.isEmpty
         ? <String?>[null]
@@ -737,6 +794,7 @@ class MangaJaNaiBootstrap {
         '--no-warn-script-location',
         '--progress-bar',
         'off',
+        ...extraArgs,
         if (index != null) ...['--index-url', index],
         ...packages,
       ];
