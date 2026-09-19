@@ -67,10 +67,15 @@ class MangaJaNaiBootstrap {
   MangaJaNaiBootstrap._();
 
   static const _pythonVersion = '3.12.10';
+  static const _pythonVersionKey = '312';
   static const _pythonEmbeddableUrl =
       'https://www.python.org/ftp/python/$_pythonVersion/'
       'python-$_pythonVersion-embed-amd64.zip';
   static const _getPipUrl = 'https://bootstrap.pypa.io/get-pip.py';
+
+  /// embed 包缓存名带版本：换了 Python 版本后旧缓存必须失效。
+  static const _pythonEmbeddableCacheName =
+      'mangajanai-python-embed-$_pythonVersionKey.zip';
 
   /// 版本与后端 `pyproject.toml` 锁定一致。torch 系必须从 pytorch 官方 cu128
   /// 索引安装（PyPI 上的 Windows torch wheel 不含 CUDA）；pyproject 里写的
@@ -144,9 +149,28 @@ class MangaJaNaiBootstrap {
   /// 引擎安装目录（`<files>/mangajanai/`）。公开给设置页做预检与展示。
   static Future<String> installRoot() => _installRoot();
 
-  /// 引擎是否已通过引导安装（python.exe 存在即视为装过）。
-  static Future<bool> get isBootstrapped async =>
-      File(p.join(await _pythonDir(), 'python.exe')).existsSync();
+  /// 引擎是否已通过引导安装，且 Python 运行时版本正确。
+  static Future<bool> get isBootstrapped => _pythonRuntimeMatches();
+
+  /// 已装 Python 运行时是否是当前 [_pythonVersion]。
+  ///
+  /// 旧版本（3.13）的 embed 目录同样有 `python.exe`，但 `chainner_ext` 没有
+  /// cp313 Windows wheel，继续复用只会稳定地落到 sdist 构建失败。这里用
+  /// `._pth` 文件名与核心 DLL 判定，两者都是 embed 包自带的版本标志。
+  static Future<bool> _pythonRuntimeMatches() async {
+    final dir = Directory(await _pythonDir());
+    if (!dir.existsSync()) return false;
+    final hasPth = File(
+      p.join(dir.path, 'python$_pythonVersionKey._pth'),
+    ).existsSync();
+    if (!hasPth) return false;
+    final listed = await dir.list().map((e) => p.basename(e.path)).toList();
+    return listed.any(
+      (name) =>
+          name.startsWith('python$_pythonVersionKey.') &&
+          name.toLowerCase().endsWith('.dll'),
+    );
+  }
 
   /// 当前正在运行的安装子进程（pip / zipfile），供 [MangaJaNaiCancelToken] 终止。
   static Process? _activeProcess;
@@ -197,6 +221,24 @@ class MangaJaNaiBootstrap {
 
     void checkCancel() => cancelToken?.throwIfCancelled();
 
+    // ---- 阶段 0 前置：旧 Python 运行时替换 ----
+    //
+    // 历史版本用过 3.13，装了 3.13 引擎的机器重跑「在线安装」时
+    // `python.exe` 已存在，旧逻辑会直接跳到 pip，于是在错误的解释器上
+    // 反复失败。这里先判定版本；不匹配就只删运行时目录，保留 models /
+    // backend 等已下载成果。pip 阶段随后会在新解释器上重装依赖。
+    if (File(pythonExe).existsSync() && !await _pythonRuntimeMatches()) {
+      onProgress?.call(
+        MangaJaNaiInstallStage.python,
+        detail: '检测到旧版 Python 运行时，正在替换为 $_pythonVersion…',
+      );
+      final oldPythonRoot = Directory(p.join(root, 'python'));
+      if (oldPythonRoot.existsSync()) {
+        await oldPythonRoot.delete(recursive: true);
+      }
+      _quietDelete(p.join(cache, 'mangajanai-python-embed.zip'));
+    }
+
     // ---- 阶段 0：预检 ----
     //
     // 10 GB 硬门槛只在「真的要装 Python（= 全量安装）」时拉起：已装好引擎的
@@ -228,7 +270,7 @@ class MangaJaNaiBootstrap {
     // ---- 阶段 1：Python embeddable + pip ----
     if (!File(pythonExe).existsSync()) {
       onProgress?.call(MangaJaNaiInstallStage.python);
-      final zipPath = p.join(cache, 'mangajanai-python-embed.zip');
+      final zipPath = p.join(cache, _pythonEmbeddableCacheName);
       if (forceRedownload) await MangaJaNaiDownloader.discardPartial(zipPath);
       await MangaJaNaiDownloader.download(
         _pythonEmbeddableUrl,
@@ -451,6 +493,8 @@ class MangaJaNaiBootstrap {
 
     final cache = await getCachePath();
     for (final name in [
+      _pythonEmbeddableCacheName,
+      // 3.13 时代的缓存名，卸载时一并清掉。
       'mangajanai-python-embed.zip',
       'mangajanai-backend-main.zip',
       for (final (_, fileName) in _modelPackages) fileName,
