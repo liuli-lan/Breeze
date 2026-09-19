@@ -594,11 +594,14 @@ class MangaJaNaiEngine {
 /// `mangajanai-win.7z` 解压后的内容校验器（方案 §12.3 的「MangaJaNai 版
 /// `_missingModelFiles()`」）。
 ///
-/// 与 NCNN 的 `_missingModelFiles()` 同构，但**按内容按目录**判定，且
-/// **容忍多一层目录包装**（用户可能把整个 `mangajanai/` 文件夹打进包里，
-/// 也可能按打包脚本那样顶层直接是 `python/ models/ backend/`）。
+/// 两种语义，别混用：
+/// - [validate]（**导入**用）：包允许只含部分顶层目录（例如只补 `models/`），
+///   对**出现的**目录校验其必须项；`python/ models/ backend/` 一个都没有才是
+///   「包选错了」。这与 `MangaJaNaiBootstrap.archiveTopLevelDirs` 的「按目录
+///   整体替换、缺的跳过」是同一套语义。
+/// - [validateComplete]（**就绪判定**用）：托管运行环境四类必须项全部齐全才算过。
 ///
-/// 四类必须项缺了都会在运行期才炸，因此导入前必须全部拦住：
+/// 四类必须项缺了都会在运行期才炸，因此出现时必须拦住：
 /// - `python/python/python.exe`：服务与 CLI 都靠它跑；
 /// - `backend/src/run_upscale.py`：CLI 入口（服务端直接 import 后端模块）；
 /// - `backend/ImageMagick/*.icc`：`run_upscale` 从 `../ImageMagick/` 读 ICC，
@@ -607,46 +610,91 @@ class MangaJaNaiEngine {
 class MangaJaNaiArchiveValidator {
   MangaJaNaiArchiveValidator._();
 
-  /// 校验 [extractedRoot] 下的内容，返回缺失项描述；空列表表示通过。
+  /// 校验离线包解压目录（导入语义：部分内容也算通过）。空列表 = 通过。
   static Future<List<String>> validate(String extractedRoot) async {
-    final root = _normalizeRoot(extractedRoot);
+    final root = normalizeRoot(extractedRoot);
+    final hasPython = Directory(p.join(root, 'python')).existsSync();
+    final hasBackend = Directory(p.join(root, 'backend')).existsSync();
+    final hasModels = Directory(p.join(root, 'models')).existsSync();
+
+    // 三个顶层目录一个都没有：要么包选错了，要么多套了一层包装目录。
+    if (!hasPython && !hasBackend && !hasModels) {
+      final wrapped = _findWrappedRoot(extractedRoot);
+      return [
+        wrapped == null
+            ? '顶层缺少 python/ models/ backend/ 中的任何一个（这不是运行环境包）'
+            : '压缩包多套了一层目录 ${p.basename(wrapped)}/'
+                  '（顶层应直接是 python/ models/ backend/，请重新打包）',
+      ];
+    }
+
+    final missing = <String>[];
+    // 目录没出现在包里 = 这次导入不涉及它，不报缺失（部分补齐是合法用法）。
+    if (hasPython &&
+        !File(p.join(root, 'python', 'python', 'python.exe')).existsSync()) {
+      missing.add(p.join('python', 'python', 'python.exe'));
+    }
+    if (hasBackend) {
+      if (!File(
+        p.join(root, 'backend', 'src', 'run_upscale.py'),
+      ).existsSync()) {
+        missing.add(p.join('backend', 'src', 'run_upscale.py'));
+      }
+      if (!_hasIccProfile(p.join(root, 'backend', 'ImageMagick'))) {
+        missing.add(p.join('backend', 'ImageMagick', '*.icc'));
+      }
+    }
+    if (hasModels) {
+      for (final model in MangaJaNaiEngine.requiredModelFiles()) {
+        if (!File(p.join(root, 'models', model)).existsSync()) {
+          missing.add(p.join('models', model));
+        }
+      }
+    }
+    return missing;
+  }
+
+  /// 校验托管运行环境是否**完整**就绪（四类必须项全部齐全）。空列表 = 就绪。
+  ///
+  /// 与 [validate] 的区别：目录没出现**也算缺失** —— 就绪判定没有「部分补齐」可言。
+  static Future<List<String>> validateComplete(String root) async {
     final missing = <String>[];
 
     if (!File(p.join(root, 'python', 'python', 'python.exe')).existsSync()) {
       missing.add(p.join('python', 'python', 'python.exe'));
     }
-
     if (!File(p.join(root, 'backend', 'src', 'run_upscale.py')).existsSync()) {
       missing.add(p.join('backend', 'src', 'run_upscale.py'));
     }
-
-    final iccDir = Directory(p.join(root, 'backend', 'ImageMagick'));
-    final hasIcc =
-        iccDir.existsSync() &&
-        iccDir.listSync().whereType<File>().any(
-          (f) => p.extension(f.path).toLowerCase() == '.icc',
-        );
-    if (!hasIcc) {
+    if (!_hasIccProfile(p.join(root, 'backend', 'ImageMagick'))) {
       missing.add(p.join('backend', 'ImageMagick', '*.icc'));
     }
-
     for (final model in MangaJaNaiEngine.requiredModelFiles()) {
       if (!File(p.join(root, 'models', model)).existsSync()) {
         missing.add(p.join('models', model));
       }
     }
-
     return missing;
   }
 
-  /// 归一化到真正的引擎根目录。
+  /// 归一化到真正的引擎根目录，**公开给导入流程的复制环节使用**。
   ///
-  /// 判定依据是**内容**（能不能找到 `python` 目录）而非目录名 —— 名字随用户习惯变，
-  /// 内容不会。找不到就原样返回，让上层如实报告缺什么。
-  static String _normalizeRoot(String extractedRoot) {
+  /// 容忍「包里多套一层目录」：用户可能把整个 `mangajanai/` 文件夹打进去，
+  /// 也可能按打包脚本那样顶层直接是 `python/ models/ backend/`。判定依据是
+  /// **内容**（能不能找到 `python` 目录）而非目录名 —— 名字随用户习惯变，内容不会。
+  ///
+  /// ⚠️ 校验与复制必须用同一个根：只在校验时归一、复制时还用原目录，
+  /// 会出现「校验通过但什么都没复制」的静默空导入。
+  static String normalizeRoot(String extractedRoot) {
     if (Directory(p.join(extractedRoot, 'python')).existsSync()) {
       return extractedRoot;
     }
+    final wrapped = _findWrappedRoot(extractedRoot);
+    return wrapped ?? extractedRoot;
+  }
+
+  /// 找「唯一子目录且其下有 python/」的包装根；找不到返回 null。
+  static String? _findWrappedRoot(String extractedRoot) {
     try {
       final subDirs = Directory(
         extractedRoot,
@@ -656,8 +704,20 @@ class MangaJaNaiArchiveValidator {
         return subDirs.first.path;
       }
     } on Object catch (_) {
-      // 扫描失败时按原样返回，让 validate 的缺失报告说明问题
+      // 扫描失败按找不到处理，让上层如实报告缺什么
     }
-    return extractedRoot;
+    return null;
+  }
+
+  static bool _hasIccProfile(String dirPath) {
+    final dir = Directory(dirPath);
+    if (!dir.existsSync()) return false;
+    try {
+      return dir.listSync().whereType<File>().any(
+        (f) => p.extension(f.path).toLowerCase() == '.icc',
+      );
+    } on Object catch (_) {
+      return false;
+    }
   }
 }

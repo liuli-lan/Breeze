@@ -45,9 +45,11 @@ class MangaJaNaiRuntime {
   /// 校验托管运行环境，返回缺失项描述；空列表表示通过。
   ///
   /// 与导入流程共用一个校验器（`MangaJaNaiArchiveValidator`）：设置页用它决定
-  /// ① 通道显示「已就绪」还是「尚未安装」。
+  /// ① 通道显示「已就绪」还是「尚未安装」。注意用 [MangaJaNaiArchiveValidator
+  /// .validateComplete]（全量语义）而不是 `validate`（部分补齐语义）——
+  /// 就绪判定没有「部分补齐」可言。
   static Future<List<String>> missingParts() async =>
-      MangaJaNaiArchiveValidator.validate(await installRoot());
+      MangaJaNaiArchiveValidator.validateComplete(await installRoot());
 
   /// 在线安装运行环境（① 通道），先停服务再调 Bootstrap。
   static Future<void> install({

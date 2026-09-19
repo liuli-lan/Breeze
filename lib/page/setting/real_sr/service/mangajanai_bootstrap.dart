@@ -203,25 +203,32 @@ class MangaJaNaiBootstrap {
     void checkCancel() => cancelToken?.throwIfCancelled();
 
     // ---- 阶段 0：预检 ----
-    onProgress?.call(MangaJaNaiInstallStage.preflight);
-    final report = await MangaJaNaiPreflight.check(targetPath: root);
-    if (!report.diskOk) {
-      throw MangaJaNaiInstallException(
-        kind: MangaJaNaiFailureKind.disk,
-        message:
-            '磁盘空间不足：${report.driveLabel} 需至少 '
-            '${MangaJaNaiDownloader.formatBytes(MangaJaNaiPreflightReport.requiredBytes)}'
-            ' 空闲，当前仅 '
-            '${MangaJaNaiDownloader.formatBytes(report.freeBytes ?? 0)}',
+    //
+    // 10 GB 硬门槛只在「真的要装 Python（= 全量安装）」时拉起：已装好引擎的
+    // 重新安装多半只是补模型（zip ~600 MB）或跑一次 no-op 的 pip，拿全量门槛
+    // 拦人等于把「修复」堵在门外。Python 已存在时的磁盘不足会在具体写入/pip
+    // 阶段以 disk 类失败暴露，同样能被 UI 分类展示。
+    if (!File(pythonExe).existsSync()) {
+      onProgress?.call(MangaJaNaiInstallStage.preflight);
+      final report = await MangaJaNaiPreflight.check(targetPath: root);
+      if (!report.diskOk) {
+        throw MangaJaNaiInstallException(
+          kind: MangaJaNaiFailureKind.disk,
+          message:
+              '磁盘空间不足：${report.driveLabel} 需至少 '
+              '${MangaJaNaiDownloader.formatBytes(MangaJaNaiPreflightReport.requiredBytes)}'
+              ' 空闲，当前仅 '
+              '${MangaJaNaiDownloader.formatBytes(report.freeBytes ?? 0)}',
+        );
+      }
+      onProgress?.call(
+        MangaJaNaiInstallStage.preflight,
+        detail: report.hasNvidiaGpu
+            ? '检测到 ${report.gpu}'
+            : '未检测到 NVIDIA 显卡（CPU 模式会慢 20~27 倍）',
       );
+      checkCancel();
     }
-    onProgress?.call(
-      MangaJaNaiInstallStage.preflight,
-      detail: report.hasNvidiaGpu
-          ? '检测到 ${report.gpu}'
-          : '未检测到 NVIDIA 显卡（CPU 模式会慢 20~27 倍）',
-    );
-    checkCancel();
 
     // ---- 阶段 1：Python embeddable + pip ----
     if (!File(pythonExe).existsSync()) {
@@ -512,14 +519,55 @@ class MangaJaNaiBootstrap {
 
       onProgress?.call(MangaJaNaiInstallStage.models, detail: '校验通过，正在替换现有安装…');
       final root = await _installRoot();
+      // ⚠️ 校验与复制必须用同一个根：包可能多套一层目录（校验器会归一化），
+      // 复制还用原始解压目录的话会出现「校验通过但什么都没复制」的静默空导入。
+      final sourceRoot = MangaJaNaiArchiveValidator.normalizeRoot(
+        extracted.path,
+      );
       await Directory(root).create(recursive: true);
-      for (final name in archiveTopLevelDirs) {
-        checkCancel();
-        final source = Directory(p.join(extracted.path, name));
-        if (!source.existsSync()) continue;
-        final dest = Directory(p.join(root, name));
-        if (dest.existsSync()) await dest.delete(recursive: true);
-        await _moveDirectory(source, dest);
+
+      // 替换前先把现有目录整体改名挪走（同卷 rename 几乎零成本）：全部移入成功
+      // 才删备份；中途失败把还没替换的目录原样改回 —— 现有安装不会被破坏。
+      final backups = <String, Directory>{};
+      try {
+        for (final name in archiveTopLevelDirs) {
+          final dest = Directory(p.join(root, name));
+          if (dest.existsSync()) {
+            final backup = Directory(
+              '${dest.path}.bak-${DateTime.now().millisecondsSinceEpoch}',
+            );
+            await dest.rename(backup.path);
+            backups[name] = backup;
+          }
+        }
+        for (final name in archiveTopLevelDirs) {
+          checkCancel();
+          final source = Directory(p.join(sourceRoot, name));
+          if (!source.existsSync()) continue;
+          await _moveDirectory(source, Directory(p.join(root, name)));
+        }
+      } on Object {
+        for (final entry in backups.entries) {
+          final dest = Directory(p.join(root, entry.key));
+          if (dest.existsSync()) {
+            // 这个目录已经换成了新内容，回退不了 —— 备份留在原地不删，至少不丢数据。
+            logger.w(
+              '导入中断：${entry.key} 已替换为新内容，'
+              '旧内容备份保留在 ${entry.value.path}',
+            );
+            continue;
+          }
+          try {
+            await entry.value.rename(dest.path);
+          } on Object catch (e) {
+            logger.w('导入回滚失败，备份保留在 ${entry.value.path}', error: e);
+          }
+        }
+        rethrow;
+      }
+      // 全部成功：现在才允许删掉旧内容。
+      for (final backup in backups.values) {
+        _quietDeleteDir(backup.path);
       }
     } finally {
       try {

@@ -173,9 +173,12 @@ class DeployChannelTiles extends StatelessWidget {
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextButton(onPressed: onDelete, child: Text(texts.deleteAction)),
             TextButton(
-              onPressed: onDownload,
+              onPressed: importing ? null : onDelete,
+              child: Text(texts.deleteAction),
+            ),
+            TextButton(
+              onPressed: importing ? null : onDownload,
               child: Text(texts.reinstallAction),
             ),
           ],
@@ -188,7 +191,9 @@ class DeployChannelTiles extends StatelessWidget {
       title: Text(texts.notReadyTitle),
       subtitle: Text(texts.notReadySubtitle),
       trailing: ElevatedButton(
-        onPressed: onDownload,
+        // ③ 导入进行中禁用 ①：两条通道会同时写 `<files>/mangajanai/`，
+        // 并发替换目录的结果不可预测。
+        onPressed: importing ? null : onDownload,
         child: Text(texts.installAction),
       ),
     );
@@ -238,7 +243,11 @@ class DeployChannelTiles extends StatelessWidget {
                 ),
               ],
             )
-          : TextButton(onPressed: onImport, child: Text(texts.importAction)),
+          : TextButton(
+              // ① 安装进行中禁用 ③：同一条「互斥」理由，两个通道不能并发。
+              onPressed: downloading ? null : onImport,
+              child: Text(texts.importAction),
+            ),
     );
   }
 }

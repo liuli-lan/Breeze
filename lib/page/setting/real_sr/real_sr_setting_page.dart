@@ -100,6 +100,12 @@ class _RealSrSettingPageState extends State<RealSrSettingPage> {
   /// 看到「已就绪」却找不到安装/导入入口。
   List<String> _runtimeMissing = const [];
 
+  /// 是否正在删除托管运行环境（① 通道就绪态的删除动作）。
+  ///
+  /// 与 [_installingEngine] 分开：删除不可取消（没有令牌可打断），
+  /// 共用一个标志会让「取消」按钮在删除期间出现却不起作用。
+  bool _deletingRuntime = false;
+
   /// 是否正在导入运行环境离线包（③ 通道）。
   bool _importingRuntime = false;
   CoreMLModelFamily _coreMLFamily = CoreMLModelConfig.defaultFamily;
@@ -800,7 +806,7 @@ class _RealSrSettingPageState extends State<RealSrSettingPage> {
     );
     if (confirmed != true || !mounted) return;
 
-    setState(() => _installingEngine = true);
+    setState(() => _deletingRuntime = true);
     try {
       await MangaJaNaiRuntime.uninstall();
       if (mounted) showSuccessToast(t.realSr.mangaJaNaiRuntimeDeleted);
@@ -811,7 +817,7 @@ class _RealSrSettingPageState extends State<RealSrSettingPage> {
       }
     } finally {
       if (mounted) {
-        setState(() => _installingEngine = false);
+        setState(() => _deletingRuntime = false);
         await _loadSettings();
       }
     }
@@ -1113,11 +1119,12 @@ class _RealSrSettingPageState extends State<RealSrSettingPage> {
           importAction: t.realSr.importModelAction,
         ),
         ready: _runtimeMissing.isEmpty,
-        downloading: _installingEngine,
+        downloading: _installingEngine || _deletingRuntime,
         statusText: _installStatusText ?? '',
         manualDownloadUrl: MangaJaNaiRuntime.manualDownloadUrl,
         importing: _importingRuntime,
         importStatusText: _importingRuntime ? (_installStatusText ?? '') : '',
+        // 只有真正跑着安装（有令牌）时才给「取消」；删除不可取消。
         onCancel: _installingEngine ? _cancelInstall : null,
         cancelLabel: _installingEngine ? t.common.cancel : null,
         onDownload: _installEngineOnline,
