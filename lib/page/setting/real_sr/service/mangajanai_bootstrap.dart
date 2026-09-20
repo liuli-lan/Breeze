@@ -426,12 +426,12 @@ class MangaJaNaiBootstrap {
         await extractDir.create(recursive: true);
         await _extractZipSmall(archivePath, extractDir.path);
 
-        final subDirs = extractDir.listSync().whereType<Directory>().toList();
-        final backendSource = subDirs.length == 1
-            ? Directory(p.join(subDirs.single.path, 'backend'))
-            : Directory(p.join(extractDir.path, 'backend'));
-        if (!backendSource.existsSync()) {
-          throw StateError('上游后端源码包缺少 backend/ 目录');
+        // 不要假设仓库 ZIP 的目录层数：上游实际是
+        // `<repo>-main/<repo>/backend/...`（两层），早期只剥一层会直接失败。
+        // 这里按内容递归定位 `backend/src/run_upscale.py`，层级变了也不受影响。
+        final backendSource = _findBackendDir(extractDir.path);
+        if (backendSource == null) {
+          throw StateError('上游后端源码包缺少 backend/src/run_upscale.py');
         }
 
         final backendDest = Directory(p.join(root, 'backend'));
@@ -724,6 +724,25 @@ class MangaJaNaiBootstrap {
     } finally {
       await raf.close();
     }
+  }
+
+  /// 在解压结果里递归找出 `backend/`（其下含 `src/run_upscale.py`）。
+  ///
+  /// 上游仓库 ZIP 的包装层数不固定，按内容定位比按固定层级更稳。
+  /// 找不到返回 null，由调用方给出可读错误。
+  static Directory? _findBackendDir(String rootPath) {
+    final root = Directory(rootPath);
+    for (final entity in root.listSync(recursive: true, followLinks: false)) {
+      if (entity is! File) continue;
+      if (p.basename(entity.path) != 'run_upscale.py') continue;
+      // 期望 .../backend/src/run_upscale.py
+      final srcDir = p.dirname(entity.path);
+      if (p.basename(srcDir) != 'src') continue;
+      final backendDir = Directory(p.dirname(srcDir));
+      if (p.basename(backendDir.path) != 'backend') continue;
+      return backendDir;
+    }
+    return null;
   }
 
   /// 把目录移动到目标位置；跨磁盘/分区失败时退回复制后删除。
