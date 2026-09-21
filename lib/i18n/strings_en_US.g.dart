@@ -1169,7 +1169,7 @@ class _Translations$realSr$en_US extends Translations$realSr$zh_CN {
 	@override String get mangaJaNaiDownloadSourceOfficialNote => 'Download directly from official sources; usually the right choice when you have a direct overseas connection or a proxy';
 	@override String get mangaJaNaiDownloadSourceMirrorNote => 'Use China mirrors for everything; a mirror may be down or lack torch cu128, in which case it still falls back to the official source';
 	@override String get mangaJaNaiModelImport => 'Import model archives (models only)';
-	@override String get mangaJaNaiModelImportSubtitle => 'Model download too slow? Fetch the official model packages (.zip / .7z) yourself with a browser or download manager, then pick the files here to import; requires Python and the backend to be installed';
+	@override String get mangaJaNaiModelImportSubtitle => 'Model download too slow? Fetch the official model packages yourself with a browser or a multi-threaded download manager, then import them here (multi-select supported). You need both MangaJaNai_V1_ModelsOnly.zip and IllustrationJaNai_V3denoise.zip from the model releases page. Requires Python and the backend to be installed';
 	@override String get mangaJaNaiModelImportOpenPage => 'Open releases page';
 	@override String get mangaJaNaiModelImportRunning => 'Importing models, please keep the app open…';
 	@override String get mangaJaNaiModelImportDone => 'Models imported';
@@ -2594,7 +2594,7 @@ extension on TranslationsEnUs {
 			'realSr.mangaJaNaiDownloadSourceOfficialNote' => 'Download directly from official sources; usually the right choice when you have a direct overseas connection or a proxy',
 			'realSr.mangaJaNaiDownloadSourceMirrorNote' => 'Use China mirrors for everything; a mirror may be down or lack torch cu128, in which case it still falls back to the official source',
 			'realSr.mangaJaNaiModelImport' => 'Import model archives (models only)',
-			'realSr.mangaJaNaiModelImportSubtitle' => 'Model download too slow? Fetch the official model packages (.zip / .7z) yourself with a browser or download manager, then pick the files here to import; requires Python and the backend to be installed',
+			'realSr.mangaJaNaiModelImportSubtitle' => 'Model download too slow? Fetch the official model packages yourself with a browser or a multi-threaded download manager, then import them here (multi-select supported). You need both MangaJaNai_V1_ModelsOnly.zip and IllustrationJaNai_V3denoise.zip from the model releases page. Requires Python and the backend to be installed',
 			'realSr.mangaJaNaiModelImportOpenPage' => 'Open releases page',
 			'realSr.mangaJaNaiModelImportRunning' => 'Importing models, please keep the app open…',
 			'realSr.mangaJaNaiModelImportDone' => 'Models imported',

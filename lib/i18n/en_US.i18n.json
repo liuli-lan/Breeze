@@ -990,7 +990,7 @@
     "mangaJaNaiDownloadSourceOfficialNote": "Download directly from official sources; usually the right choice when you have a direct overseas connection or a proxy",
     "mangaJaNaiDownloadSourceMirrorNote": "Use China mirrors for everything; a mirror may be down or lack torch cu128, in which case it still falls back to the official source",
     "mangaJaNaiModelImport": "Import model archives (models only)",
-    "mangaJaNaiModelImportSubtitle": "Model download too slow? Fetch the official model packages (.zip / .7z) yourself with a browser or download manager, then pick the files here to import; requires Python and the backend to be installed",
+    "mangaJaNaiModelImportSubtitle": "Model download too slow? Fetch the official model packages yourself with a browser or a multi-threaded download manager, then import them here (multi-select supported). You need both MangaJaNai_V1_ModelsOnly.zip and IllustrationJaNai_V3denoise.zip from the model releases page. Requires Python and the backend to be installed",
     "mangaJaNaiModelImportOpenPage": "Open releases page",
     "mangaJaNaiModelImportRunning": "Importing models, please keep the app open…",
     "mangaJaNaiModelImportDone": "Models imported",

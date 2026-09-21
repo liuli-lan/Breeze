@@ -3098,8 +3098,8 @@ class Translations$realSr$zh_CN {
 	/// zh-CN: '导入模型压缩包（只补模型）'
 	String get mangaJaNaiModelImport => '导入模型压缩包（只补模型）';
 
-	/// zh-CN: '在线下载模型太慢？用浏览器或下载器自行下载官方模型包（.zip / .7z）后，在这里选择文件导入；需要已装好 Python 与后端'
-	String get mangaJaNaiModelImportSubtitle => '在线下载模型太慢？用浏览器或下载器自行下载官方模型包（.zip / .7z）后，在这里选择文件导入；需要已装好 Python 与后端';
+	/// zh-CN: '在线下载模型太慢？用浏览器或多线程下载器自行下载官方模型包后在此导入（可一次多选）。需要两个包：MangaJaNai_V1_ModelsOnly.zip 与 IllustrationJaNai_V3denoise.zip，都在模型下载页。前提：Python 与后端已装好'
+	String get mangaJaNaiModelImportSubtitle => '在线下载模型太慢？用浏览器或多线程下载器自行下载官方模型包后在此导入（可一次多选）。需要两个包：MangaJaNai_V1_ModelsOnly.zip 与 IllustrationJaNai_V3denoise.zip，都在模型下载页。前提：Python 与后端已装好';
 
 	/// zh-CN: '打开模型下载页'
 	String get mangaJaNaiModelImportOpenPage => '打开模型下载页';
@@ -5085,7 +5085,7 @@ extension on Translations {
 			'realSr.mangaJaNaiDownloadSourceOfficialNote' => '直接从官方源下载；海外或挂了代理的直连环境通常选它',
 			'realSr.mangaJaNaiDownloadSourceMirrorNote' => '全部走国内镜像；镜像站可能失效或缺 torch cu128，失败后仍会自动回退官方源',
 			'realSr.mangaJaNaiModelImport' => '导入模型压缩包（只补模型）',
-			'realSr.mangaJaNaiModelImportSubtitle' => '在线下载模型太慢？用浏览器或下载器自行下载官方模型包（.zip / .7z）后，在这里选择文件导入；需要已装好 Python 与后端',
+			'realSr.mangaJaNaiModelImportSubtitle' => '在线下载模型太慢？用浏览器或多线程下载器自行下载官方模型包后在此导入（可一次多选）。需要两个包：MangaJaNai_V1_ModelsOnly.zip 与 IllustrationJaNai_V3denoise.zip，都在模型下载页。前提：Python 与后端已装好',
 			'realSr.mangaJaNaiModelImportOpenPage' => '打开模型下载页',
 			'realSr.mangaJaNaiModelImportRunning' => '正在导入模型，请勿关闭应用…',
 			'realSr.mangaJaNaiModelImportDone' => '模型导入完成',

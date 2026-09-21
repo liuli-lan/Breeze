@@ -1217,7 +1217,8 @@ class _RealSrSettingPageState extends State<RealSrSettingPage> {
                     onPressed:
                         _installingEngine ||
                             _importingRuntime ||
-                            _deletingRuntime
+                            _deletingRuntime ||
+                            _importingModels
                         ? null
                         : () => _openDownloadUrl(MangaJaNaiRuntime.modelReleasesUrl),
                     child: Text(t.realSr.mangaJaNaiModelImportOpenPage),
@@ -1227,7 +1228,8 @@ class _RealSrSettingPageState extends State<RealSrSettingPage> {
                     onPressed:
                         _installingEngine ||
                             _importingRuntime ||
-                            _deletingRuntime
+                            _deletingRuntime ||
+                            _importingModels
                         ? null
                         : _importModelArchives,
                     child: Text(t.realSr.importModelAction),
