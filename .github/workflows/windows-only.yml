@@ -73,12 +73,31 @@ jobs:
           fvm flutter pub get
           fvm dart ./script/build_windows.dart
 
-      - name: 上传 Windows 安装器
+      - name: 上传 Windows 安装器（Tauri 应用本体）
         uses: actions/upload-artifact@v6
         with:
           name: windows-installer-exe
           path: windows-installer/src-tauri/target/release/windows-installer.exe
           if-no-files-found: error
+          retention-days: 14
+
+      # Tauri 的 bundle.targets=all 还会产出 NSIS / MSI 两个真正的安装器。
+      # 只上传上面的 windows-installer.exe（应用本体）是不够的 —— 它不带
+      # bundle 资源，直接双击会因 WebView2 拉不起本地通道而白屏。交付用 NSIS。
+      - name: 上传 NSIS 安装包（交付用）
+        uses: actions/upload-artifact@v6
+        with:
+          name: windows-installer-nsis
+          path: windows-installer/src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: 上传 MSI 安装包
+        uses: actions/upload-artifact@v6
+        with:
+          name: windows-installer-msi
+          path: windows-installer/src-tauri/target/release/bundle/msi/*.msi
+          if-no-files-found: warn
           retention-days: 14
 
       - name: 上传可直接运行的 Release 目录
