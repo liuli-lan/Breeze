@@ -3094,6 +3094,24 @@ class Translations$realSr$zh_CN {
 
 	/// zh-CN: '全部走国内镜像；镜像站可能失效或缺 torch cu128，失败后仍会自动回退官方源'
 	String get mangaJaNaiDownloadSourceMirrorNote => '全部走国内镜像；镜像站可能失效或缺 torch cu128，失败后仍会自动回退官方源';
+
+	/// zh-CN: '导入模型压缩包（只补模型）'
+	String get mangaJaNaiModelImport => '导入模型压缩包（只补模型）';
+
+	/// zh-CN: '在线下载模型太慢？用浏览器或下载器自行下载官方模型包（.zip / .7z）后，在这里选择文件导入；需要已装好 Python 与后端'
+	String get mangaJaNaiModelImportSubtitle => '在线下载模型太慢？用浏览器或下载器自行下载官方模型包（.zip / .7z）后，在这里选择文件导入；需要已装好 Python 与后端';
+
+	/// zh-CN: '打开模型下载页'
+	String get mangaJaNaiModelImportOpenPage => '打开模型下载页';
+
+	/// zh-CN: '正在导入模型，请勿关闭应用…'
+	String get mangaJaNaiModelImportRunning => '正在导入模型，请勿关闭应用…';
+
+	/// zh-CN: '模型导入完成'
+	String get mangaJaNaiModelImportDone => '模型导入完成';
+
+	/// zh-CN: '模型导入失败'
+	String get mangaJaNaiModelImportFailed => '模型导入失败';
 }
 
 // Path: about
@@ -5066,6 +5084,12 @@ extension on Translations {
 			'realSr.mangaJaNaiDownloadSourceAutoNote' => '优先用镜像加速；镜像失效或缺包时自动切回官方源重试，无需手动干预',
 			'realSr.mangaJaNaiDownloadSourceOfficialNote' => '直接从官方源下载；海外或挂了代理的直连环境通常选它',
 			'realSr.mangaJaNaiDownloadSourceMirrorNote' => '全部走国内镜像；镜像站可能失效或缺 torch cu128，失败后仍会自动回退官方源',
+			'realSr.mangaJaNaiModelImport' => '导入模型压缩包（只补模型）',
+			'realSr.mangaJaNaiModelImportSubtitle' => '在线下载模型太慢？用浏览器或下载器自行下载官方模型包（.zip / .7z）后，在这里选择文件导入；需要已装好 Python 与后端',
+			'realSr.mangaJaNaiModelImportOpenPage' => '打开模型下载页',
+			'realSr.mangaJaNaiModelImportRunning' => '正在导入模型，请勿关闭应用…',
+			'realSr.mangaJaNaiModelImportDone' => '模型导入完成',
+			'realSr.mangaJaNaiModelImportFailed' => '模型导入失败',
 			'about.title' => '关于应用',
 			'about.version' => ({required Object version}) => '版本号: ${version}',
 			'about.loading' => '加载中...',
@@ -5123,14 +5147,14 @@ extension on Translations {
 			'oldHome.loadMoreFailed' => '加载更多失败，点击重试',
 			'oldHome.loadMore' => '点击加载更多',
 			'oldHome.noMore' => '没有更多了',
+			_ => null,
+		} ?? switch (path) {
 			'more.common' => '常用',
 			'more.others' => '其他',
 			'more.downloadTasks' => '下载任务',
 			'more.sync' => '同步',
 			'more.comicFollow' => '追更',
 			'more.changelog' => '更新日志',
-			_ => null,
-		} ?? switch (path) {
 			'search.title' => '搜索',
 			'search.searchHint' => '搜索...',
 			'search.selectSource' => '选择漫画源',

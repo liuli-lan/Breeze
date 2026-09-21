@@ -988,7 +988,13 @@
     "mangaJaNaiDownloadSourceMirror": "Mirror (Tsinghua TUNA + gh-proxy)",
     "mangaJaNaiDownloadSourceAutoNote": "Prefers mirrors for speed; if a mirror fails or is missing a package it automatically retries with the official source, no manual work needed",
     "mangaJaNaiDownloadSourceOfficialNote": "Download directly from official sources; usually the right choice when you have a direct overseas connection or a proxy",
-    "mangaJaNaiDownloadSourceMirrorNote": "Use China mirrors for everything; a mirror may be down or lack torch cu128, in which case it still falls back to the official source"
+    "mangaJaNaiDownloadSourceMirrorNote": "Use China mirrors for everything; a mirror may be down or lack torch cu128, in which case it still falls back to the official source",
+    "mangaJaNaiModelImport": "Import model archives (models only)",
+    "mangaJaNaiModelImportSubtitle": "Model download too slow? Fetch the official model packages (.zip / .7z) yourself with a browser or download manager, then pick the files here to import; requires Python and the backend to be installed",
+    "mangaJaNaiModelImportOpenPage": "Open releases page",
+    "mangaJaNaiModelImportRunning": "Importing models, please keep the app open…",
+    "mangaJaNaiModelImportDone": "Models imported",
+    "mangaJaNaiModelImportFailed": "Model import failed"
   },
   "about": {
     "title": "About app",

@@ -1168,6 +1168,12 @@ class _Translations$realSr$en_US extends Translations$realSr$zh_CN {
 	@override String get mangaJaNaiDownloadSourceAutoNote => 'Prefers mirrors for speed; if a mirror fails or is missing a package it automatically retries with the official source, no manual work needed';
 	@override String get mangaJaNaiDownloadSourceOfficialNote => 'Download directly from official sources; usually the right choice when you have a direct overseas connection or a proxy';
 	@override String get mangaJaNaiDownloadSourceMirrorNote => 'Use China mirrors for everything; a mirror may be down or lack torch cu128, in which case it still falls back to the official source';
+	@override String get mangaJaNaiModelImport => 'Import model archives (models only)';
+	@override String get mangaJaNaiModelImportSubtitle => 'Model download too slow? Fetch the official model packages (.zip / .7z) yourself with a browser or download manager, then pick the files here to import; requires Python and the backend to be installed';
+	@override String get mangaJaNaiModelImportOpenPage => 'Open releases page';
+	@override String get mangaJaNaiModelImportRunning => 'Importing models, please keep the app open…';
+	@override String get mangaJaNaiModelImportDone => 'Models imported';
+	@override String get mangaJaNaiModelImportFailed => 'Model import failed';
 }
 
 // Path: about
@@ -2587,6 +2593,12 @@ extension on TranslationsEnUs {
 			'realSr.mangaJaNaiDownloadSourceAutoNote' => 'Prefers mirrors for speed; if a mirror fails or is missing a package it automatically retries with the official source, no manual work needed',
 			'realSr.mangaJaNaiDownloadSourceOfficialNote' => 'Download directly from official sources; usually the right choice when you have a direct overseas connection or a proxy',
 			'realSr.mangaJaNaiDownloadSourceMirrorNote' => 'Use China mirrors for everything; a mirror may be down or lack torch cu128, in which case it still falls back to the official source',
+			'realSr.mangaJaNaiModelImport' => 'Import model archives (models only)',
+			'realSr.mangaJaNaiModelImportSubtitle' => 'Model download too slow? Fetch the official model packages (.zip / .7z) yourself with a browser or download manager, then pick the files here to import; requires Python and the backend to be installed',
+			'realSr.mangaJaNaiModelImportOpenPage' => 'Open releases page',
+			'realSr.mangaJaNaiModelImportRunning' => 'Importing models, please keep the app open…',
+			'realSr.mangaJaNaiModelImportDone' => 'Models imported',
+			'realSr.mangaJaNaiModelImportFailed' => 'Model import failed',
 			'about.title' => 'About app',
 			'about.version' => ({required Object version}) => 'Version: ${version}',
 			'about.loading' => 'Loading...',
@@ -2645,14 +2657,14 @@ extension on TranslationsEnUs {
 			'oldHome.loadMore' => 'Load more',
 			'oldHome.noMore' => 'No more',
 			'more.common' => 'Common',
+			_ => null,
+		} ?? switch (path) {
 			'more.others' => 'Others',
 			'more.downloadTasks' => 'Download Tasks',
 			'more.sync' => 'Sync',
 			'more.comicFollow' => 'Updates',
 			'more.changelog' => 'Changelog',
 			'search.title' => 'Search',
-			_ => null,
-		} ?? switch (path) {
 			'search.searchHint' => 'Search...',
 			'search.selectSource' => 'Select Source',
 			'search.advancedSearchNotSupported' => 'Current plugin does not support advanced search',

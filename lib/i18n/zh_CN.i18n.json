@@ -989,7 +989,13 @@
     "mangaJaNaiDownloadSourceMirror": "镜像源（清华 TUNA + gh-proxy）",
     "mangaJaNaiDownloadSourceAutoNote": "优先用镜像加速；镜像失效或缺包时自动切回官方源重试，无需手动干预",
     "mangaJaNaiDownloadSourceOfficialNote": "直接从官方源下载；海外或挂了代理的直连环境通常选它",
-    "mangaJaNaiDownloadSourceMirrorNote": "全部走国内镜像；镜像站可能失效或缺 torch cu128，失败后仍会自动回退官方源"
+    "mangaJaNaiDownloadSourceMirrorNote": "全部走国内镜像；镜像站可能失效或缺 torch cu128，失败后仍会自动回退官方源",
+    "mangaJaNaiModelImport": "导入模型压缩包（只补模型）",
+    "mangaJaNaiModelImportSubtitle": "在线下载模型太慢？用浏览器或下载器自行下载官方模型包（.zip / .7z）后，在这里选择文件导入；需要已装好 Python 与后端",
+    "mangaJaNaiModelImportOpenPage": "打开模型下载页",
+    "mangaJaNaiModelImportRunning": "正在导入模型，请勿关闭应用…",
+    "mangaJaNaiModelImportDone": "模型导入完成",
+    "mangaJaNaiModelImportFailed": "模型导入失败"
   },
   "about": {
     "title": "关于应用",

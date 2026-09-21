@@ -536,6 +536,157 @@ class MangaJaNaiBootstrap {
     logger.d('MangaJaNai bootstrap install finished: $root');
   }
 
+  /// 只导入模型压缩包（官方模型 zip / 7z），跳过在线下载。
+  ///
+  /// 适用场景：在线下载模型太慢，用户用浏览器 / 下载器自行下载官方模型包后
+  /// 在设置页选择导入。**前提**是 python 与 backend 已就位（模型单独无法使用），
+  /// 解压复用在线安装阶段 5 的同一套机制（用已装 Python 的 zipfile 流式解压，
+  /// 不占 Dart 内存；7z 走 Rust 侧 `decompress7Z`）。
+  ///
+  /// 导入是**叠加**语义：按文件名把压缩包里的链模型复制进 `models/`，
+  /// 不删除现有文件；全部完成后做终检，仍缺的会列出，让用户补导另一个包。
+  static Future<void> installModelsFromLocalArchives(
+    List<String> archivePaths, {
+    MangaJaNaiInstallProgress? onProgress,
+    MangaJaNaiCancelToken? cancelToken,
+  }) async {
+    try {
+      await _installModelsFromLocalArchives(
+        archivePaths,
+        onProgress: onProgress,
+        cancelToken: cancelToken,
+      );
+    } on Object catch (e) {
+      throw classifyInstallError(e);
+    }
+  }
+
+  static Future<void> _installModelsFromLocalArchives(
+    List<String> archivePaths, {
+    required MangaJaNaiInstallProgress? onProgress,
+    required MangaJaNaiCancelToken? cancelToken,
+  }) async {
+    void checkCancel() => cancelToken?.throwIfCancelled();
+
+    if (archivePaths.isEmpty) {
+      throw const MangaJaNaiInstallException(
+        kind: MangaJaNaiFailureKind.unknown,
+        message: '未选择任何压缩包',
+      );
+    }
+    final root = await _installRoot();
+    final pythonExe = p.join(root, 'python', 'python', 'python.exe');
+    if (!File(pythonExe).existsSync()) {
+      throw const MangaJaNaiInstallException(
+        kind: MangaJaNaiFailureKind.unknown,
+        message:
+            '尚未安装 Python 运行时，模型单独无法使用；请先完成①在线安装或③导入运行环境',
+      );
+    }
+    final backendScript = p.join(root, 'backend', 'src', 'run_upscale.py');
+    if (!File(backendScript).existsSync()) {
+      throw const MangaJaNaiInstallException(
+        kind: MangaJaNaiFailureKind.unknown,
+        message: '尚未安装后端源码，请先完成运行环境安装（①在线安装或③导入）',
+      );
+    }
+
+    final pythonDir = p.join(root, 'python', 'python');
+    final modelsDir = p.join(root, 'models');
+    await Directory(modelsDir).create(recursive: true);
+    final required = MangaJaNaiEngine.requiredModelFiles();
+    final cache = await getCachePath();
+    var imported = 0;
+
+    for (final archivePath in archivePaths) {
+      checkCancel();
+      final file = File(archivePath);
+      if (!file.existsSync()) {
+        throw MangaJaNaiInstallException(
+          kind: MangaJaNaiFailureKind.unknown,
+          message: '压缩包不存在',
+          detail: archivePath,
+        );
+      }
+      final isSevenZ = await RealSrSuperResolution.isSevenZArchive(file);
+      final isZip = await _isZipArchive(file);
+      if (!isSevenZ && !isZip) {
+        throw MangaJaNaiInstallException(
+          kind: MangaJaNaiFailureKind.unknown,
+          message: '不是有效的压缩包（支持官方模型 zip 或 7z）',
+          detail: p.basename(archivePath),
+        );
+      }
+
+      final extractDir = Directory(
+        p.join(cache, 'mangajanai-models-${const Uuid().v4()}'),
+      );
+      try {
+        await extractDir.create(recursive: true);
+        onProgress?.call(
+          MangaJaNaiInstallStage.models,
+          detail: '正在解压 ${p.basename(archivePath)}…',
+        );
+        if (isZip) {
+          final result = await _runProcess(
+            pythonExe,
+            ['-m', 'zipfile', '-e', archivePath, extractDir.path],
+            workingDirectory: pythonDir,
+            stage: MangaJaNaiInstallStage.models,
+            onProgress: onProgress,
+            timeout: const Duration(minutes: 30),
+            cancelToken: cancelToken,
+          );
+          if (result.exitCode != 0) {
+            throw StateError(
+              '模型包解压失败: ${p.basename(archivePath)}\n'
+              'stdout: ${result.stdout}\nstderr: ${result.stderr}',
+            );
+          }
+        } else {
+          await decompress7Z(archivePath: archivePath, destPath: extractDir.path);
+        }
+
+        var count = 0;
+        await for (final entity in extractDir.list(
+          recursive: true,
+          followLinks: false,
+        )) {
+          if (entity is! File) continue;
+          final baseName = p.basename(entity.path);
+          if (required.contains(baseName)) {
+            await entity.copy(p.join(modelsDir, baseName));
+            count++;
+          }
+        }
+        imported += count;
+        onProgress?.call(
+          MangaJaNaiInstallStage.models,
+          detail:
+              '${p.basename(archivePath)}：导入 $count 个模型文件（累计 $imported）',
+        );
+      } finally {
+        _quietDeleteDir(extractDir.path);
+      }
+    }
+
+    if (imported == 0) {
+      throw StateError('压缩包里没有找到链需要的模型文件（需要官方 MangaJaNai 模型包）');
+    }
+    checkCancel();
+    final stillMissing = required
+        .where((name) => !File(p.join(modelsDir, name)).existsSync())
+        .toList();
+    if (stillMissing.isNotEmpty) {
+      throw StateError('仍缺少以下模型文件，请再导入对应的压缩包: $stillMissing');
+    }
+    onProgress?.call(
+      MangaJaNaiInstallStage.models,
+      detail: '模型已齐（${required.length}/${required.length}）',
+    );
+    logger.d('模型导入完成: $imported 个文件来自 ${archivePaths.length} 个压缩包');
+  }
+
   /// 删除通过引导安装的引擎目录（不影响本机 GUI 安装）。
   ///
   /// 顺带清掉下载缓存里的 `.part` 残留，避免「卸载后重装」从旧的不完整文件续传。

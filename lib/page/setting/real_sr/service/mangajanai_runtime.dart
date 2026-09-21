@@ -38,6 +38,10 @@ class MangaJaNaiRuntime {
       'https://github.com/the-database/MangaJaNaiConverterGui/releases/'
       'latest/download/MangaJaNaiConverterGui-win-Portable.zip';
 
+  /// 官方模型包的发布页（「只补模型」通道让用户自己去这里下载 zip）。
+  static const String modelReleasesUrl =
+      'https://github.com/the-database/MangaJaNai/releases';
+
   /// 运行环境根目录（与 [MangaJaNaiBootstrap] 的安装目录一致）。
   static Future<String> installRoot() => MangaJaNaiBootstrap.installRoot();
 
@@ -88,6 +92,24 @@ class MangaJaNaiRuntime {
     await MjnLocalService.instance.stop();
     await MangaJaNaiBootstrap.importArchive(
       archivePath,
+      onProgress: onProgress,
+      cancelToken: cancelToken,
+    );
+  }
+
+  /// 只导入模型压缩包（在线下载模型太慢时的替代路径），先停服务再调 Bootstrap。
+  ///
+  /// 与 [importArchive] 的区别：目标是 `models/` 的**叠加补齐**，要求
+  /// python / backend 已就位；模型文件被服务端 torch 占用时同样写不进去，
+  /// 所以停服务这一步不能省。
+  static Future<void> importModelArchives(
+    List<String> archivePaths, {
+    MangaJaNaiInstallProgress? onProgress,
+    MangaJaNaiCancelToken? cancelToken,
+  }) async {
+    await MjnLocalService.instance.stop();
+    await MangaJaNaiBootstrap.installModelsFromLocalArchives(
+      archivePaths,
       onProgress: onProgress,
       cancelToken: cancelToken,
     );

@@ -108,6 +108,9 @@ class _RealSrSettingPageState extends State<RealSrSettingPage> {
 
   /// 是否正在导入运行环境离线包（③ 通道）。
   bool _importingRuntime = false;
+
+  /// 是否正在导入模型压缩包（「只补模型」通道，在线下载模型太慢时的替代路径）。
+  bool _importingModels = false;
   CoreMLModelFamily _coreMLFamily = CoreMLModelConfig.defaultFamily;
   CoreMLModelVariant _coreMLVariant = CoreMLModelConfig.defaultVariant;
   bool _isAvailable = false;
@@ -865,6 +868,61 @@ class _RealSrSettingPageState extends State<RealSrSettingPage> {
     }
   }
 
+  /// 只导入模型压缩包（「只补模型」通道）。
+  ///
+  /// 与 [_importLocalRuntime] 的差别：目标是 `models/` 的叠加补齐，适合
+  /// 「python/backend 已装好、只有模型下载慢」的场景。用户先用浏览器 /
+  /// 下载器把官方模型 zip 下到本地（挂着代理下就快了），再在这里多选导入。
+  Future<void> _importModelArchives() async {
+    final typeGroup = const XTypeGroup(
+      label: '模型包',
+      extensions: ['zip', '7z'],
+    );
+    List<XFile> files;
+    try {
+      files = await openFiles(acceptedTypeGroups: [typeGroup]);
+    } catch (e) {
+      showErrorToast('${t.realSr.mangaJaNaiModelImportFailed}: $e');
+      return;
+    }
+    if (files.isEmpty) return;
+
+    setState(() => _importingModels = true);
+    try {
+      await MangaJaNaiRuntime.importModelArchives(
+        [for (final f in files) f.path],
+        onProgress: (stage, {received, total, detail}) {
+          if (!mounted || detail == null) return;
+          setState(() => _installStatusText = detail);
+        },
+      );
+      if (mounted) showSuccessToast(t.realSr.mangaJaNaiModelImportDone);
+    } on MangaJaNaiInstallCancelled {
+      if (mounted) showInfoToast(t.realSr.mangaJaNaiInstallCancelled);
+    } catch (e, s) {
+      // 与在线安装同一条取消语义：直接抛出的和被 classify 包一层的都要认。
+      final cancelled =
+          e is MangaJaNaiInstallException &&
+          e.kind == MangaJaNaiFailureKind.cancelled;
+      if (cancelled) {
+        if (mounted) showInfoToast(t.realSr.mangaJaNaiInstallCancelled);
+      } else {
+        logger.e('模型导入失败', error: e, stackTrace: s);
+        if (mounted) {
+          showErrorToast('${t.realSr.mangaJaNaiModelImportFailed}: $e');
+        }
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _importingModels = false;
+          _installStatusText = null;
+        });
+        await _loadSettings();
+      }
+    }
+  }
+
   Future<void> _importModel() async {
     // iOS 没有系统声明的 7z UTI，使用通用数据类型后由导入逻辑校验 7z 魔数。
     final typeGroup = Platform.isIOS
@@ -1122,7 +1180,7 @@ class _RealSrSettingPageState extends State<RealSrSettingPage> {
         downloading: _installingEngine || _deletingRuntime,
         statusText: _installStatusText ?? '',
         manualDownloadUrl: MangaJaNaiRuntime.manualDownloadUrl,
-        importing: _importingRuntime,
+        importing: _importingRuntime || _importingModels,
         importStatusText: _importingRuntime ? (_installStatusText ?? '') : '',
         // 只有真正跑着安装（有令牌）时才给「取消」；删除不可取消。
         onCancel: _installingEngine ? _cancelInstall : null,
@@ -1132,6 +1190,50 @@ class _RealSrSettingPageState extends State<RealSrSettingPage> {
         onImport: _importLocalRuntime,
         onOpenManualDownload: () =>
             _openDownloadUrl(MangaJaNaiRuntime.manualDownloadUrl),
+      ),
+      // 「只补模型」通道：在线下载模型太慢时的替代路径。与三通道的关系是
+      // 补充而非并列 —— python/backend 仍走上面的通道，这里只往 models/ 叠加。
+      // 模型文件可能被服务端 torch 占用，导入前会先停常驻服务。
+      ListTile(
+        leading: const Icon(Icons.sim_card_download_outlined),
+        title: Text(t.realSr.mangaJaNaiModelImport),
+        subtitle: _importingModels
+            ? Text(
+                '${t.realSr.mangaJaNaiModelImportRunning}\n'
+                '${_installStatusText ?? ''}',
+              )
+            : Text(t.realSr.mangaJaNaiModelImportSubtitle),
+        isThreeLine: _importingModels,
+        trailing: _importingModels
+            ? const SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextButton(
+                    onPressed:
+                        _installingEngine ||
+                            _importingRuntime ||
+                            _deletingRuntime
+                        ? null
+                        : () => _openDownloadUrl(MangaJaNaiRuntime.modelReleasesUrl),
+                    child: Text(t.realSr.mangaJaNaiModelImportOpenPage),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton(
+                    onPressed:
+                        _installingEngine ||
+                            _importingRuntime ||
+                            _deletingRuntime
+                        ? null
+                        : _importModelArchives,
+                    child: Text(t.realSr.importModelAction),
+                  ),
+                ],
+              ),
       ),
       // NVIDIA 的「CUDA - 系统内存回退策略」若保持默认，显存不足时会回退到
       // 系统内存，超分速度差一个数量级。这是驱动侧设置，应用无法代劳，只能提示。
