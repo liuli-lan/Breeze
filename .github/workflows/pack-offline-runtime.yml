@@ -2,8 +2,8 @@ name: Pack Offline Runtime (Windows)
 
 # 在云端组装 MangaJaNai 离线运行环境包，并发布到 Release。
 #
-# 为什么要在云端做：整包约 5 GB（Python 4.6 + 模型 0.47），从国内家宽上传极慢；
-# 云端下载上游依赖是机房带宽，本地零流量。
+# 为什么在云端做：整包约 5 GB（Python 4.6 + 模型 0.47），从国内家宽上传极慢；
+# 云端下载上游依赖走机房带宽，本地零流量。
 #
 # 产物布局与应用的 `MangaJaNaiBootstrap` 安装结果**同构**，可直接用
 # 「设定 → 超分 → 运行环境 → 导入运行环境压缩包」导入：
@@ -12,13 +12,15 @@ name: Pack Offline Runtime (Windows)
 #   backend/src/run_upscale.py + backend/ImageMagick/*.icc
 #   models/  ← 16 个链模型
 #
-# ⚠️ GitHub Release 单文件上限 2 GB，因此用 7z 分卷（-v1800m）。
-#    用户需先合并分卷再导入：`copy /b x.7z.001+x.7z.002+... x.7z`
-#    （仓库里同时提供「合并分卷.bat」）。
+# ⚠️ GitHub Release 单文件上限 2 GB → 用 7z 分卷（-v1800m），随包提供
+#    join-volumes.bat（双击即按字节拼接回单一 7z）与 SHA256SUMS.txt。
 #
 # ⚠️ 依赖清单必须与 `lib/page/setting/real_sr/service/mangajanai_bootstrap.dart`
 #    保持一致（Python 版本 / PyPI 清单 / torch 版本 / pyvips 的
-#    --no-build-isolation 特殊处理）。改动那边时**必须同步改这里**。
+#    --no-build-isolation 特殊处理）。改那边时必须同步改这里。
+#
+# 许可与说明文案放在 `script/offline-pack/` 下，本文件只做拷贝 —— 避免在
+# YAML 块标量里嵌大段文本（顶格的 here-string 会截断 `run: |` 块）。
 
 on:
   workflow_dispatch:
@@ -58,8 +60,8 @@ jobs:
           $pack = Join-Path $env:RUNNER_TEMP 'pack'
           $dl   = Join-Path $env:RUNNER_TEMP 'dl'
           New-Item -ItemType Directory -Force -Path $pack, $dl | Out-Null
-          "PACK=$pack"     | Add-Content -Path $env:GITHUB_ENV
-          "DL=$dl"         | Add-Content -Path $env:GITHUB_ENV
+          "PACK=$pack" | Add-Content -Path $env:GITHUB_ENV
+          "DL=$dl" | Add-Content -Path $env:GITHUB_ENV
           "PYDIR=$pack\python\python" | Add-Content -Path $env:GITHUB_ENV
 
       - name: 下载并解压 Python embeddable
@@ -72,9 +74,9 @@ jobs:
           Invoke-WebRequest -Uri $url -OutFile $zip -UseBasicParsing
           New-Item -ItemType Directory -Force -Path $env:PYDIR | Out-Null
           Expand-Archive -Path $zip -DestinationPath $env:PYDIR -Force
-          # embeddable 默认禁用 site-packages；与 Bootstrap 写入的内容完全一致。
-          Set-Content -Path "$env:PYDIR\python$($env:PY_KEY)._pth" -Value "python$($env:PY_KEY).zip`nDLLs`nLib`n.`nLib/site-packages" -NoNewline
-          Add-Content -Path "$env:PYDIR\python$($env:PY_KEY)._pth" -Value ""
+          $pth = "$env:PYDIR\python$($env:PY_KEY)._pth"
+          Set-Content -Path $pth -Value @("python$($env:PY_KEY).zip", 'DLLs', 'Lib', '.', 'Lib/site-packages')
+          Get-Content $pth
           & "$env:PYDIR\python.exe" -c "import sys; print(sys.version)"
 
       - name: 安装 pip
@@ -138,7 +140,6 @@ jobs:
           Invoke-WebRequest -Uri 'https://github.com/the-database/MangaJaNaiConverterGui/archive/refs/heads/main.zip' -OutFile $zip -UseBasicParsing
           $tmp = "$env:DL\backend-x"
           & "$env:PYDIR\python.exe" -m zipfile -e $zip $tmp
-          # 上游是两层嵌套（<repo>-main/<repo>/backend/…），按内容递归定位。
           $hit = Get-ChildItem $tmp -Recurse -Filter 'run_upscale.py' |
                  Where-Object { $_.Directory.Name -eq 'src' -and $_.Directory.Parent.Name -eq 'backend' } |
                  Select-Object -First 1
@@ -163,7 +164,6 @@ jobs:
             Invoke-WebRequest -Uri $u -OutFile $zip -UseBasicParsing
             $x = Join-Path $env:DL "m-$([guid]::NewGuid().ToString('N'))"
             & "$env:PYDIR\python.exe" -m zipfile -e $zip $x
-            # zip 内部结构不保证平铺，按扩展名递归收集。
             Get-ChildItem $x -Recurse -File | Where-Object { $_.Extension -in '.pth', '.safetensors' } |
               ForEach-Object { Copy-Item $_.FullName (Join-Path "$env:PACK\models" $_.Name) -Force }
           }
@@ -173,12 +173,10 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $need = @(
-            'python\python\python.exe',
-            'backend\src\run_upscale.py'
-          )
           $bad = @()
-          foreach ($f in $need) { if (-not (Test-Path "$env:PACK\$f")) { $bad += $f } }
+          foreach ($f in @('python\python\python.exe', 'backend\src\run_upscale.py')) {
+            if (-not (Test-Path "$env:PACK\$f")) { $bad += $f }
+          }
           if (-not (Get-ChildItem "$env:PACK\backend\ImageMagick" -Filter *.icc)) { $bad += 'backend\ImageMagick\*.icc' }
 
           $models = @(
@@ -186,13 +184,13 @@ jobs:
             '4x_IllustrationJaNai_V3denoise_FDAT_M_47k_fp16.safetensors'
           )
           $buckets = @(
-            @{m='1200p'; i2='70k';  i4='70k'},
-            @{m='1300p'; i2='75k';  i4='75k'},
-            @{m='1400p'; i2='70k';  i4='105k'},
-            @{m='1500p'; i2='90k';  i4='105k'},
-            @{m='1600p'; i2='90k';  i4='70k'},
-            @{m='1920p'; i2='70k';  i4='105k'},
-            @{m='2048p'; i2='95k';  i4='70k'}
+            @{m='1200p'; i2='70k'; i4='70k'},
+            @{m='1300p'; i2='75k'; i4='75k'},
+            @{m='1400p'; i2='70k'; i4='105k'},
+            @{m='1500p'; i2='90k'; i4='105k'},
+            @{m='1600p'; i2='90k'; i4='70k'},
+            @{m='1920p'; i2='70k'; i4='105k'},
+            @{m='2048p'; i2='95k'; i4='70k'}
           )
           foreach ($b in $buckets) {
             $models += "2x_MangaJaNai_$($b.m)_V1_ESRGAN_$($b.i2).pth"
@@ -201,57 +199,21 @@ jobs:
           foreach ($m in $models) { if (-not (Test-Path "$env:PACK\models\$m")) { $bad += "models\$m" } }
 
           if ($bad.Count -gt 0) {
-            Write-Host "缺失：" -ForegroundColor Red
-            $bad | ForEach-Object { Write-Host "  $_" }
+            $bad | ForEach-Object { Write-Host "  缺失: $_" }
             throw "包内容校验失败（$($bad.Count) 项）"
           }
           $size = (Get-ChildItem $env:PACK -Recurse -File | Measure-Object Length -Sum).Sum
           Write-Host "校验通过：$($models.Count) 个模型 + python + backend"
           Write-Host ("解压后体积：{0:N2} GB" -f ($size/1GB))
 
-      - name: 许可与说明文件
+      - name: 放入许可与说明
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $lic = @'
-# 许可与署名 · MangaJaNai 离线运行环境包
+          Copy-Item 'script\offline-pack\LICENSES.md' "$env:PACK\LICENSES.md" -Force
+          Get-Item "$env:PACK\LICENSES.md" | Select-Object Name, Length
 
-本包由个人 fork（liuli-lan/Breeze）在 GitHub Actions 上组装，**仅供非商业用途**。
-
-## 模型（models/）
-
-- **MangaJaNai / IllustrationJaNai 模型** —— 作者 the-database，
-  许可 **Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0)**。
-  上游：https://github.com/the-database/MangaJaNai
-  模型包：MangaJaNai_V1_ModelsOnly.zip（release 1.0.0）、
-  IllustrationJaNai_V3denoise.zip（release 3.0.0）
-  许可全文：https://creativecommons.org/licenses/by-nc/4.0/legalcode
-  本包未修改模型权重，仅做原样再分发；若你要再分发本包，必须保留本段署名与许可声明。
-  **不得用于商业目的。**
-
-## Python 运行时（python/）
-
-- CPython 3.12.10 embeddable —— Python Software Foundation License 2.0，
-  https://www.python.org/downloads/release/python-31210/
-- PyTorch / torchvision（cu128）—— BSD-3-Clause，https://github.com/pytorch/pytorch
-- 其余 pip 依赖（numpy / opencv-python / spandrel / sanic / pyvips / pynvml 等）
-  各自沿用其上游许可，见 `python/python/Lib/site-packages/*.dist-info/`。
-
-## chaiNNer 后端（backend/）
-
-- 来自 MangaJaNaiConverterGui 的 main 分支源码（作者 the-database），
-  许可 **GPL-3.0**（以随包源码形式提供）。上游：
-  https://github.com/the-database/MangaJaNaiConverterGui
-- ImageMagick ICC profile 随该后端源码一同分发。
-
-## 免责
-
-本包按"现状"提供，不提供任何担保。超分需要 NVIDIA 独立显卡与驱动。
-'@
-          Set-Content -Path "$env:PACK\LICENSES.md" -Value $lic -Encoding utf8
-          Write-Host "LICENSES.md 已写入"
-
-      - name: 7z 分卷压缩（每卷 < 2 GB，适配 GitHub Release 单文件上限）
+      - name: 7z 分卷压缩（每卷 1800 MB，低于 Release 的 2 GB 上限）
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
@@ -261,7 +223,6 @@ jobs:
           New-Item -ItemType Directory -Force -Path $out | Out-Null
           "OUT=$out" | Add-Content -Path $env:GITHUB_ENV
 
-          # 用 .\* 保证包内顶层就是 python/ backend/ models/ LICENSES.md
           Push-Location $env:PACK
           & $sevenZip a -t7z -m0=lzma2 -mx=$env:MX -mmt=on -v1800m "$out\mangajanai-win.7z" .\*
           $code = $LASTEXITCODE
@@ -276,35 +237,14 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $bat = @'
-@echo off
-setlocal
-cd /d "%~dp0"
-echo 正在合并分卷...
-copy /b mangajanai-win.7z.001+mangajanai-win.7z.002+mangajanai-win.7z.003+mangajanai-win.7z.004 mangajanai-win.7z
-if errorlevel 1 goto fail
-echo.
-echo 合并完成：mangajanai-win.7z
-echo 校验 SHA-256（应与 SHA256SUMS.txt 中一致）：
-certutil -hashfile mangajanai-win.7z SHA256
-echo.
-echo 接下来：Breeze -^> 设定 -^> 超分 -^> 超分引擎 -^> MangaJaNai（本地）
-echo          -^> 运行环境 -^> 导入运行环境压缩包 -^> 选择 mangajanai-win.7z
-pause
-exit /b 0
-:fail
-echo 合并失败：请确认所有 .7z.00N 分卷都下载在同一个文件夹内。
-pause
-exit /b 1
-'@
-          Set-Content -Path "$env:OUT\合并分卷并校验.bat" -Value $bat -Encoding ascii
-
+          Copy-Item 'script\offline-pack\join-volumes.bat' "$env:OUT\合并分卷并校验.bat" -Force
           $lines = Get-ChildItem "$env:OUT\mangajanai-win.7z.*" | Sort-Object Name | ForEach-Object {
             $h = (Get-FileHash $_.FullName -Algorithm SHA256).Hash
             "$h  $($_.Name)"
           }
           Set-Content -Path "$env:OUT\SHA256SUMS.txt" -Value $lines -Encoding utf8
           Get-Content "$env:OUT\SHA256SUMS.txt"
+          Get-ChildItem $env:OUT | Select-Object Name, @{n='MB'; e={[math]::Round($_.Length/1MB,1)}} | Format-Table -AutoSize
 
       - name: 发布到 Release
         shell: pwsh
@@ -312,26 +252,27 @@ exit /b 1
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           $ErrorActionPreference = 'Stop'
+          # 原生命令的失败不要抛异常，一律用 $LASTEXITCODE 判断（避免 pwsh 版本差异）。
+          $PSNativeCommandUseErrorActionPreference = $false
           $repo = $env:GITHUB_REPOSITORY
-          $notes = @'
-MangaJaNai 离线运行环境包（Windows）
-
-- 解压后约 5 GB，含 Python 3.12.10 + torch 2.9.1（cu128）+ chaiNNer 后端 + 16 个 MangaJaNai 模型
-- 因 GitHub 单文件 2 GB 上限，用 7z 分卷（每卷 1800 MB）
-- 用法：把全部 `.7z.00N` 分卷与 `合并分卷并校验.bat` 放在同一目录，双击该 bat 得到 `mangajanai-win.7z`，
-  再在 Breeze 里「设定 → 超分 → 超分引擎 → MangaJaNai（本地）→ 运行环境 → 导入运行环境压缩包」选择它
-- 许可：模型为 CC BY-NC 4.0（**禁止商业用途**），详见包内 `LICENSES.md`
-- 需要 NVIDIA 独立显卡与驱动；本包不包含模型之外的上游代码改动
-'@
-          Set-Content -Path "$env:OUT\RELEASE_NOTES.md" -Value $notes -Encoding utf8
-
+          Copy-Item 'script\offline-pack\RELEASE_NOTES.md' "$env:OUT\RELEASE_NOTES.md" -Force
           $files = Get-ChildItem "$env:OUT" -File | ForEach-Object { $_.FullName }
 
-          & gh release view $env:TAG --repo $repo 2>$null | Out-Null
-          if ($LASTEXITCODE -ne 0) {
+          $hasRelease = $false
+          try {
+            & gh release view $env:TAG --repo $repo | Out-Null
+            $hasRelease = ($LASTEXITCODE -eq 0)
+          } catch { $hasRelease = $false }
+
+          if (-not $hasRelease) {
             & gh release create $env:TAG --repo $repo --title "MangaJaNai 离线运行环境包 $env:TAG" --notes-file "$env:OUT\RELEASE_NOTES.md"
-            if ($LASTEXITCODE -ne 0) { throw "创建 Release 失败" }
+            if ($LASTEXITCODE -ne 0) { throw '创建 Release 失败' }
           }
-          & gh release upload $env:TAG --repo $repo --clobber @files
-          if ($LASTEXITCODE -ne 0) { throw "上传 Release 资源失败" }
+
+          # 单个 asset 上限 2 GB；分卷每卷 1800 MB，逐卷上传最稳。
+          foreach ($f in $files) {
+            Write-Host "UPLOAD $([System.IO.Path]::GetFileName($f))"
+            & gh release upload $env:TAG --repo $repo --clobber $f
+            if ($LASTEXITCODE -ne 0) { throw "上传失败: $f" }
+          }
           & gh release view $env:TAG --repo $repo
