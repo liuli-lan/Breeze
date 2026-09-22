@@ -376,7 +376,9 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          Copy-Item 'script\offline-pack\join-volumes.bat' "$env:OUT\合并分卷并校验.bat" -Force
+          # 资产文件名一律用 ASCII：中文名经 gh release upload 会被改成
+          # "default.bat"（实测），用户根本对不上号。
+          Copy-Item 'script\offline-pack\join-volumes.bat' "$env:OUT\join-volumes.bat" -Force
           $lines = Get-ChildItem "$env:OUT\mangajanai-win.7z.*" | Sort-Object Name | ForEach-Object {
             $h = (Get-FileHash $_.FullName -Algorithm SHA256).Hash
             "$h  $($_.Name)"
