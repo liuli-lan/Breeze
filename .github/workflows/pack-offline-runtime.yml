@@ -12,8 +12,9 @@ name: Pack Offline Runtime (Windows)
 #   backend/src/run_upscale.py + backend/ImageMagick/*.icc
 #   models/  ← 16 个链模型
 #
-# ⚠️ GitHub Release 单文件上限 2 GB → 用 7z 分卷（-v1800m），随包提供
-#    join-volumes.bat（双击即按字节拼接回单一 7z）与 SHA256SUMS.txt。
+# ⚠️ GitHub Release 单文件上限 2 GB → 打成单一 7z 后**自行按字节切分**
+#    （每卷 1900 MB），随包提供 join-volumes.bat（双击即拼接回单一 7z）与
+#    SHA256SUMS.txt。不用 7z 的 -v：runner 上 7-Zip 26.03 对它报参数错误。
 #
 # ⚠️ 依赖清单必须与 `lib/page/setting/real_sr/service/mangajanai_bootstrap.dart`
 #    保持一致（Python 版本 / PyPI 清单 / torch 版本 / pyvips 的
@@ -213,7 +214,7 @@ jobs:
           Copy-Item 'script\offline-pack\LICENSES.md' "$env:PACK\LICENSES.md" -Force
           Get-Item "$env:PACK\LICENSES.md" | Select-Object Name, Length
 
-      - name: 7z 分卷压缩（每卷 1800 MB，低于 Release 的 2 GB 上限）
+      - name: 7z 压缩后自行切分（每卷 1900 MB，低于 Release 的 2 GB 上限）
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
@@ -223,15 +224,49 @@ jobs:
           New-Item -ItemType Directory -Force -Path $out | Out-Null
           "OUT=$out" | Add-Content -Path $env:GITHUB_ENV
 
+          $archive = "$out\mangajanai-win.7z"
           Push-Location $env:PACK
-          & $sevenZip a -t7z -m0=lzma2 -mx=$env:MX -mmt=on -v1800m "$out\mangajanai-win.7z" .\*
+          & $sevenZip a -t7z -m0=lzma2 -mx=$env:MX -mmt=on $archive '.\*'
           $code = $LASTEXITCODE
           Pop-Location
           if ($code -ne 0) { throw "7z 压缩失败：$code" }
+          $size = (Get-Item $archive).Length
+          Write-Host ("归档大小：{0:N2} GB" -f ($size/1GB))
+
+          # 不用 7z 的 -v 分卷：runner 上的 7-Zip 26.03 对 -v 报
+          # "System ERROR: The parameter is incorrect"（本地 26.01 正常）。
+          # 改为自行按字节切分 —— 7z 分卷本来也就是纯字节切分，
+          # 拼接回来用 copy 的目标另存即可（已本地验证可解压）。
+          $partSize = 1900MB
+          $buf = New-Object byte[] (4MB)
+          $in = [System.IO.File]::OpenRead($archive)
+          try {
+            $idx = 0
+            while ($in.Position -lt $in.Length) {
+              $idx++
+              $part = Join-Path $out ("mangajanai-win.7z.{0:D3}" -f $idx)
+              $remaining = $in.Length - $in.Position
+              $limit = [Math]::Min($partSize, $remaining)
+              $written = 0
+              $outStream = [System.IO.File]::Create($part)
+              try {
+                while ($written -lt $limit) {
+                  $want = [int][Math]::Min($buf.Length, $limit - $written)
+                  $read = $in.Read($buf, 0, $want)
+                  if ($read -le 0) { break }
+                  $outStream.Write($buf, 0, $read)
+                  $written += $read
+                }
+              } finally { $outStream.Close() }
+            }
+          } finally { $in.Close() }
+          Remove-Item $archive -Force
+          if ($idx -eq 0) { throw '切分失败：没有产出任何分卷' }
 
           Get-ChildItem "$out\mangajanai-win.7z.*" | Select-Object Name, @{n='MB'; e={[math]::Round($_.Length/1MB,1)}} | Format-Table -AutoSize
           $total = (Get-ChildItem "$out\mangajanai-win.7z.*" | Measure-Object Length -Sum).Sum
-          Write-Host ("分卷合计：{0:N2} GB" -f ($total/1GB))
+          Write-Host ("分卷数：$idx，合计 {0:N2} GB" -f ($total/1GB))
+          if ($total -ne $size) { throw "分卷合计 $total != 归档大小 $size" }
 
       - name: 生成合并脚本与校验和
         shell: pwsh
