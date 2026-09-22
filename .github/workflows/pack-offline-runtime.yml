@@ -58,12 +58,54 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $pack = Join-Path $env:RUNNER_TEMP 'pack'
-          $dl   = Join-Path $env:RUNNER_TEMP 'dl'
+          # 一律放 C 盘：runner 的 D:\a\_temp 是临时盘，容量小且行为有差异
+          # （实测 7-Zip 26.03 在那里写归档直接报 "The parameter is incorrect"）。
+          $base = 'C:\pack'
+          $pack = Join-Path $base 'pack'
+          $dl   = Join-Path $base 'dl'
           New-Item -ItemType Directory -Force -Path $pack, $dl | Out-Null
           "PACK=$pack" | Add-Content -Path $env:GITHUB_ENV
           "DL=$dl" | Add-Content -Path $env:GITHUB_ENV
           "PYDIR=$pack\python\python" | Add-Content -Path $env:GITHUB_ENV
+          Get-PSDrive -PSProvider FileSystem | Select-Object Name, @{n='FreeGB'; e={[math]::Round($_.Free/1GB,1)}} | Format-Table -AutoSize
+
+      - name: 7z 探针（挑一个真能用的 7z，并留证据）
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $probeDir = 'C:\pack\probe'
+          New-Item -ItemType Directory -Force -Path $probeDir | Out-Null
+          Set-Content -Path "$probeDir\a.txt" -Value 'probe' -Encoding utf8
+
+          $candidates = @('C:\Program Files\7-Zip\7z.exe')
+          $portable = 'C:\pack\7zr.exe'
+          try {
+            Invoke-WebRequest -Uri 'https://www.7-zip.org/a/7zr.exe' -OutFile $portable -UseBasicParsing
+            $candidates += $portable
+          } catch { Write-Host "下载 7zr.exe 失败（忽略）：$_" }
+
+          $chosen = $null
+          foreach ($c in $candidates) {
+            if (-not (Test-Path $c)) { Write-Host "SKIP $c（不存在）"; continue }
+            $probe = "$probeDir\probe.7z"
+            if (Test-Path $probe) { Remove-Item $probe -Force }
+            Push-Location $probeDir
+            & $c a -t7z -m0=lzma2 -mx=5 -mmt=on $probe '.\*' 2>&1 | Select-Object -Last 8 | Write-Host
+            $code = $LASTEXITCODE
+            Pop-Location
+            $exists = Test-Path $probe
+            Write-Host "PROBE $c -> exit=$code created=$exists"
+            if ($code -eq 0 -and $exists) { $chosen = $c; break }
+          }
+
+          if (-not $chosen) {
+            # 两个 7z 都建不出归档时，退到纯 Python 的 py7zr（慢但确定能用）。
+            # 此时嵌入式 Python 还没装，实际安装放到压缩那一步去做。
+            Write-Host '所有 7z 候选都失败，转用 py7zr'
+            $chosen = 'py7zr'
+          }
+          Write-Host "选用：$chosen"
+          "SEVEN=$chosen" | Add-Content -Path $env:GITHUB_ENV
 
       - name: 下载并解压 Python embeddable
         shell: pwsh
@@ -218,25 +260,29 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $sevenZip = 'C:\Program Files\7-Zip\7z.exe'
-          if (-not (Test-Path $sevenZip)) { $sevenZip = '7z' }
-          $out = Join-Path $env:RUNNER_TEMP 'out'
+          $out = 'C:\pack\out'
           New-Item -ItemType Directory -Force -Path $out | Out-Null
           "OUT=$out" | Add-Content -Path $env:GITHUB_ENV
 
           $archive = "$out\mangajanai-win.7z"
           Push-Location $env:PACK
-          & $sevenZip a -t7z -m0=lzma2 -mx=$env:MX -mmt=on $archive '.\*'
-          $code = $LASTEXITCODE
+          if ($env:SEVEN -eq 'py7zr') {
+            & "$env:PYDIR\python.exe" -m pip install --no-warn-script-location py7zr
+            if ($LASTEXITCODE -ne 0) { throw "py7zr 安装失败：$LASTEXITCODE" }
+            & "$env:PYDIR\python.exe" -m py7zr c $archive .
+            $code = $LASTEXITCODE
+          } else {
+            Write-Host "使用 $env:SEVEN"
+            & $env:SEVEN a -t7z -m0=lzma2 -mx=$env:MX -mmt=on $archive '.\*'
+            $code = $LASTEXITCODE
+          }
           Pop-Location
-          if ($code -ne 0) { throw "7z 压缩失败：$code" }
+          if ($code -ne 0) { throw "压缩失败：$code" }
           $size = (Get-Item $archive).Length
           Write-Host ("归档大小：{0:N2} GB" -f ($size/1GB))
 
-          # 不用 7z 的 -v 分卷：runner 上的 7-Zip 26.03 对 -v 报
-          # "System ERROR: The parameter is incorrect"（本地 26.01 正常）。
-          # 改为自行按字节切分 —— 7z 分卷本来也就是纯字节切分，
-          # 拼接回来用 copy 的目标另存即可（已本地验证可解压）。
+          # 自行按字节切分（不用 7z 的 -v）：分卷本质就是纯字节切分，
+          # 拼接回来即还原（合并脚本走 list 拼接，已本地验证可解压）。
           $partSize = 1900MB
           $buf = New-Object byte[] (4MB)
           $in = [System.IO.File]::OpenRead($archive)
