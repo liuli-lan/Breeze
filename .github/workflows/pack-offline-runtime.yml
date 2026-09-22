@@ -299,7 +299,9 @@ jobs:
           if ($env:SEVEN -eq 'py7zr') {
             # 用系统 Python（actions/setup-python 装的）+ 仓库里的脚本，
             # 不用包内嵌入的 Python —— 免得 py7zr 被打进离线包。
-            & python (Join-Path $env:GITHUB_WORKSPACE 'script\offline-pack\make-7z.py') $env:PACK $archive $env:MX
+            # -X utf8：双保险（脚本内部也会 reconfigure），避免控制台代码页
+            # 不是 UTF-8 时中文日志把脚本打挂。
+            & python -X utf8 (Join-Path $env:GITHUB_WORKSPACE 'script\offline-pack\make-7z.py') $env:PACK $archive $env:MX
             $code = $LASTEXITCODE
           } else {
             Write-Host "使用 $env:SEVEN"

@@ -21,7 +21,22 @@ import time
 import py7zr
 
 
+def _force_utf8_streams() -> None:
+    """把 stdout/stderr 强推到 UTF-8。
+
+    Windows 上 Python 默认用系统 ANSI 代码页（en-US 的 runner 是 cp1252），
+    中文 print 会直接抛 UnicodeEncodeError: 'charmap' codec can't encode。
+    与服务端 mjn_service.py 里的同类处理保持一致。
+    """
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+
+
 def main() -> int:
+    _force_utf8_streams()
     if len(sys.argv) < 3:
         print(__doc__)
         return 2
