@@ -14,7 +14,13 @@ name: Pack Offline Runtime (Windows)
 #
 # ⚠️ GitHub Release 单文件上限 2 GB → 打成单一 7z 后**自行按字节切分**
 #    （每卷 1900 MB），随包提供 join-volumes.bat（双击即拼接回单一 7z）与
-#    SHA256SUMS.txt。不用 7z 的 -v：runner 上 7-Zip 26.03 对它报参数错误。
+#    SHA256SUMS.txt。
+#
+# ⚠️ 默认用 py7zr 而不是 7-Zip：在 windows-2025-vs2026 镜像上，7-Zip 26.03
+#    对 5.4 GB / 2.3 万文件的输入会在建归档瞬间报
+#    "System ERROR: The parameter is incorrect"（同一二进制对小目录正常，
+#    本机 7-Zip 26.01 对同样目录也正常）。py7zr 产物经 7-Zip 验证为标准 7z。
+#    需要 7z 时用 workflow_dispatch 的 packer 输入切回去。
 #
 # ⚠️ 依赖清单必须与 `lib/page/setting/real_sr/service/mangajanai_bootstrap.dart`
 #    保持一致（Python 版本 / PyPI 清单 / torch 版本 / pyvips 的
@@ -34,6 +40,13 @@ on:
         description: "7z 压缩级别（1-9，越高越慢）"
         required: true
         default: "5"
+      packer:
+        description: "打包器：py7zr 稳、7z 快但本镜像会报参数错误"
+        type: choice
+        options:
+          - py7zr
+          - 7z
+        default: py7zr
 
 permissions:
   contents: write
@@ -50,9 +63,24 @@ jobs:
       TORCHVISION_VER: "0.24.1"
       TAG: ${{ inputs.tag }}
       MX: ${{ inputs.compression }}
+      PACKER: ${{ inputs.packer }}
 
     steps:
       - uses: actions/checkout@v5
+
+      # 打包用的 Python 与「包内自带的嵌入式 Python」是两回事：
+      # 这里装 py7zr 只为了压包，不能污染包内的 site-packages。
+      - name: 准备打包用 Python（py7zr）
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 安装 py7zr
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python -m pip install --no-warn-script-location py7zr
+          if ($LASTEXITCODE -ne 0) { throw "py7zr 安装失败：$LASTEXITCODE" }
+          python -c "import py7zr; print('py7zr', py7zr.__version__)"
 
       - name: 准备目录
         shell: pwsh
@@ -69,10 +97,18 @@ jobs:
           "PYDIR=$pack\python\python" | Add-Content -Path $env:GITHUB_ENV
           Get-PSDrive -PSProvider FileSystem | Select-Object Name, @{n='FreeGB'; e={[math]::Round($_.Free/1GB,1)}} | Format-Table -AutoSize
 
-      - name: 7z 探针（挑一个真能用的 7z，并留证据）
+      - name: 选择打包器
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
+          if ($env:PACKER -ne '7z') {
+            Write-Host '打包器：py7zr（默认，纯 Python，不受镜像上 7-Zip 的怪问题影响）'
+            "SEVEN=py7zr" | Add-Content -Path $env:GITHUB_ENV
+            exit 0
+          }
+
+          # 选了 7z 才做探针 —— 注意探针只证明「二进制可用」，
+          # 不证明它能压大目录（本镜像上小目录 OK、5.4 GB 目录必挂）。
           $probeDir = 'C:\pack\probe'
           New-Item -ItemType Directory -Force -Path $probeDir | Out-Null
           Set-Content -Path "$probeDir\a.txt" -Value 'probe' -Encoding utf8
@@ -90,20 +126,14 @@ jobs:
             $probe = "$probeDir\probe.7z"
             if (Test-Path $probe) { Remove-Item $probe -Force }
             Push-Location $probeDir
-            & $c a -t7z -m0=lzma2 -mx=5 -mmt=on $probe '.\*' 2>&1 | Select-Object -Last 8 | Write-Host
+            & $c a -t7z -m0=lzma2 -mx=$env:MX -mmt=on $probe '.\*' 2>&1 | Select-Object -Last 8 | Write-Host
             $code = $LASTEXITCODE
             Pop-Location
             $exists = Test-Path $probe
             Write-Host "PROBE $c -> exit=$code created=$exists"
             if ($code -eq 0 -and $exists) { $chosen = $c; break }
           }
-
-          if (-not $chosen) {
-            # 两个 7z 都建不出归档时，退到纯 Python 的 py7zr（慢但确定能用）。
-            # 此时嵌入式 Python 还没装，实际安装放到压缩那一步去做。
-            Write-Host '所有 7z 候选都失败，转用 py7zr'
-            $chosen = 'py7zr'
-          }
+          if (-not $chosen) { throw '选了 7z 但没有任何可用候选，改跑一次用 packer=py7zr' }
           Write-Host "选用：$chosen"
           "SEVEN=$chosen" | Add-Content -Path $env:GITHUB_ENV
 
@@ -267,9 +297,9 @@ jobs:
           $archive = "$out\mangajanai-win.7z"
           Push-Location $env:PACK
           if ($env:SEVEN -eq 'py7zr') {
-            & "$env:PYDIR\python.exe" -m pip install --no-warn-script-location py7zr
-            if ($LASTEXITCODE -ne 0) { throw "py7zr 安装失败：$LASTEXITCODE" }
-            & "$env:PYDIR\python.exe" -m py7zr c $archive .
+            # 用系统 Python（actions/setup-python 装的）+ 仓库里的脚本，
+            # 不用包内嵌入的 Python —— 免得 py7zr 被打进离线包。
+            & python (Join-Path $env:GITHUB_WORKSPACE 'script\offline-pack\make-7z.py') $env:PACK $archive $env:MX
             $code = $LASTEXITCODE
           } else {
             Write-Host "使用 $env:SEVEN"
