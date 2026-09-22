@@ -286,8 +286,20 @@ jobs:
           Copy-Item 'script\offline-pack\LICENSES.md' "$env:PACK\LICENSES.md" -Force
           Get-Item "$env:PACK\LICENSES.md" | Select-Object Name, Length
 
+      # 压缩 5.4 GB 要 30 分钟以上，任何后续步骤出问题都别重付这个代价。
+      # key 里的 v1 是「包内容版本」：上游资产版本变了就手动 +1。
+      # 刻意不把 workflow 文件本身算进 key，否则改一行 YAML 就白压一次。
+      - name: 尝试复用已压好的归档
+        id: pack-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: C:\pack\out\mangajanai-win.7z
+          key: offline-pack-v1-mx${{ inputs.compression }}-${{ hashFiles('script/offline-pack/make-7z.py') }}
+
       - name: 7z 压缩后自行切分（每卷 1900 MB，低于 Release 的 2 GB 上限）
         shell: pwsh
+        env:
+          CACHE_HIT: ${{ steps.pack-cache.outputs.cache-hit }}
         run: |
           $ErrorActionPreference = 'Stop'
           $out = 'C:\pack\out'
@@ -295,6 +307,9 @@ jobs:
           "OUT=$out" | Add-Content -Path $env:GITHUB_ENV
 
           $archive = "$out\mangajanai-win.7z"
+          if ((Test-Path $archive) -and $env:CACHE_HIT -eq 'true') {
+            Write-Host "复用缓存归档：$((Get-Item $archive).Length) 字节"
+          } else {
           Push-Location $env:PACK
           if ($env:SEVEN -eq 'py7zr') {
             # 用系统 Python（actions/setup-python 装的）+ 仓库里的脚本，
@@ -310,12 +325,16 @@ jobs:
           }
           Pop-Location
           if ($code -ne 0) { throw "压缩失败：$code" }
+          }
           $size = (Get-Item $archive).Length
           Write-Host ("归档大小：{0:N2} GB" -f ($size/1GB))
 
           # 自行按字节切分（不用 7z 的 -v）：分卷本质就是纯字节切分，
           # 拼接回来即还原（合并脚本走 list 拼接，已本地验证可解压）。
-          $partSize = 1900MB
+          # ⚠️ 必须显式 Int64：归档约 2.6 GB，超出 Int32 上限，
+          #    混用 Int32 字面量会让 Math::Min 去走 Int32 重载并抛
+          #    "Value was either too large or too small for an Int32"。
+          [int64]$partSize = 1900MB
           $buf = New-Object byte[] (4MB)
           $in = [System.IO.File]::OpenRead($archive)
           try {
@@ -323,13 +342,13 @@ jobs:
             while ($in.Position -lt $in.Length) {
               $idx++
               $part = Join-Path $out ("mangajanai-win.7z.{0:D3}" -f $idx)
-              $remaining = $in.Length - $in.Position
-              $limit = [Math]::Min($partSize, $remaining)
-              $written = 0
+              [int64]$remaining = $in.Length - $in.Position
+              [int64]$limit = [Math]::Min($partSize, $remaining)
+              [int64]$written = 0
               $outStream = [System.IO.File]::Create($part)
               try {
                 while ($written -lt $limit) {
-                  $want = [int][Math]::Min($buf.Length, $limit - $written)
+                  $want = [int][Math]::Min([int64]$buf.Length, $limit - $written)
                   $read = $in.Read($buf, 0, $want)
                   if ($read -le 0) { break }
                   $outStream.Write($buf, 0, $read)
@@ -338,13 +357,20 @@ jobs:
               } finally { $outStream.Close() }
             }
           } finally { $in.Close() }
-          Remove-Item $archive -Force
+          # 归档本身留着：下一步要把它塞进缓存，好在后续重跑时省掉 30 分钟压缩。
           if ($idx -eq 0) { throw '切分失败：没有产出任何分卷' }
 
           Get-ChildItem "$out\mangajanai-win.7z.*" | Select-Object Name, @{n='MB'; e={[math]::Round($_.Length/1MB,1)}} | Format-Table -AutoSize
           $total = (Get-ChildItem "$out\mangajanai-win.7z.*" | Measure-Object Length -Sum).Sum
           Write-Host ("分卷数：$idx，合计 {0:N2} GB" -f ($total/1GB))
           if ($total -ne $size) { throw "分卷合计 $total != 归档大小 $size" }
+
+      - name: 缓存归档（供后续重跑复用）
+        if: steps.pack-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: C:\pack\out\mangajanai-win.7z
+          key: offline-pack-v1-mx${{ inputs.compression }}-${{ hashFiles('script/offline-pack/make-7z.py') }}
 
       - name: 生成合并脚本与校验和
         shell: pwsh
