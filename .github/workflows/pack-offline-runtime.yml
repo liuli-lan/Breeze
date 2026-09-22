@@ -395,7 +395,17 @@ jobs:
           $PSNativeCommandUseErrorActionPreference = $false
           $repo = $env:GITHUB_REPOSITORY
           Copy-Item 'script\offline-pack\RELEASE_NOTES.md' "$env:OUT\RELEASE_NOTES.md" -Force
-          $files = Get-ChildItem "$env:OUT" -File | ForEach-Object { $_.FullName }
+          # ⚠️ 必须排除整包归档本身：它 2.4 GB，超过 Release 单文件 2 GB 上限，
+          #    上传会直接 HTTP 422。归档留着只是为了喂 actions/cache。
+          $files = Get-ChildItem "$env:OUT" -File |
+            Where-Object { $_.Name -ne 'mangajanai-win.7z' } |
+            ForEach-Object { $_.FullName }
+          foreach ($f in $files) {
+            $len = (Get-Item $f).Length
+            if ($len -gt 2GB) { throw "asset 超过 Release 单文件 2 GB 上限：$f（$len 字节）" }
+          }
+          Write-Host "待上传："
+          $files | ForEach-Object { Write-Host ("  {0}  {1:N1} MB" -f (Split-Path $_ -Leaf), ((Get-Item $_).Length/1MB)) }
 
           $hasRelease = $false
           try {
