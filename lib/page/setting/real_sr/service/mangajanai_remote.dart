@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:zephyr/main.dart';
+import 'package:zephyr/page/setting/real_sr/service/mjn_discovery.dart';
 import 'package:zephyr/page/setting/real_sr/service/real_sr_settings.dart';
 
 /// 远程 MangaJaNai 超分服务（mjn-service）的 `/v1/health` 摘要。
@@ -129,8 +130,17 @@ class MangaJaNaiRemoteEngine {
     if (value.isEmpty) return null;
     if (!value.contains('://')) value = 'http://$value';
     final uri = Uri.tryParse(value);
-    if (uri == null || uri.host.isEmpty) return null;
+    if (uri == null || uri.host.isEmpty || uri.host.length > 253) return null;
     if (uri.scheme != 'http' && uri.scheme != 'https') return null;
+
+    // 拒绝 `http://user:pass@host` 这类带凭据的写法。
+    //
+    // 两个后果都不好：一是这段内容会被自动转成 Authorization 头随着每个请求
+    // 发出去（等于把一份凭据交给对方），二是 baseUrl 会**原样显示在设置页**，
+    // 让它看起来只是个地址。本服务用 X-Api-Key 鉴权，不需要 URL 内嵌凭据。
+    if (uri.userInfo.isNotEmpty) return null;
+
+    if (uri.hasPort && (uri.port < 1 || uri.port > 65535)) return null;
     final port = uri.hasPort ? ':${uri.port}' : '';
     return '${uri.scheme}://${uri.host}$port';
   }
@@ -222,30 +232,162 @@ class MangaJaNaiRemoteEngine {
   /// 与本地引擎的 `missingRequirements()` 语义对齐：空列表 = 就绪。
   static Future<List<String>> missingRequirements() async {
     try {
-      final health = await probe();
-      final missing = <String>[];
-      final baseUrl = await configuredBaseUrl();
-      if (health.authRequired) {
-        final apiKey = (await RealSrSettings.loadMangaJaNaiRemoteApiKey())
-            .trim();
-        if (apiKey.isEmpty) {
-          missing.add('服务端已开启鉴权，但未填写访问 Token');
+      return await _evaluate(await probe());
+    } on MangaJaNaiRemoteException catch (e) {
+      // 探活失败时先别急着报错。单人自用场景下，最常见的失败原因**不是**服务端挂了，
+      // 而是 PC 换了 IP（DHCP 续租、换网络、路由器重启），于是当初手填的地址失效了 ——
+      // 用户完全不会往这上面想。开了自动连接就静默重发现一次，成功则用新地址重试。
+      if (await _autoReconnect()) {
+        try {
+          return await _evaluate(await probe(force: true));
+        } on MangaJaNaiRemoteException catch (retryError) {
+          return [retryError.message];
         }
       }
-      if (!health.cuda) {
-        missing.add('服务端未启用 CUDA（${health.device}），超分会慢 20 倍以上');
-      }
-      if (!health.modelsReady) {
-        missing.add(
-          '服务端缺少 ${health.missingModels.length} 个模型文件'
-          '（${health.missingModels.take(3).join(', ')}…）',
-        );
-      }
-      logger.d('MangaJaNai 远程就绪：$baseUrl @ ${health.device}');
-      return missing;
-    } on MangaJaNaiRemoteException catch (e) {
       return [e.message];
     }
+  }
+
+  /// 把一次成功的探活翻译成「还缺什么」。
+  static Future<List<String>> _evaluate(RemoteHealth health) async {
+    final missing = <String>[];
+    if (health.authRequired) {
+      final apiKey = (await RealSrSettings.loadMangaJaNaiRemoteApiKey()).trim();
+      if (apiKey.isEmpty) {
+        missing.add('服务端已开启鉴权，但未填写访问 Token');
+      }
+    }
+    if (!health.cuda) {
+      missing.add('服务端未启用 CUDA（${health.device}），超分会慢 20 倍以上');
+    }
+    if (!health.modelsReady) {
+      missing.add(
+        '服务端缺少 ${health.missingModels.length} 个模型文件'
+        '（${health.missingModels.take(3).join(', ')}…）',
+      );
+    }
+    final baseUrl = await configuredBaseUrl();
+    logger.d('MangaJaNai 远程就绪：$baseUrl @ ${health.device}');
+    return missing;
+  }
+
+  // =========================================================
+  // 配对与自动重连
+  // =========================================================
+
+  /// 自动重连的冷却时间。
+  ///
+  /// [missingRequirements] 在**每张图超分前**都会被调用，而一次局域网发现要 2 秒左右。
+  /// 没有冷却的话，服务端真的离线时整个阅读器会被拖成幻灯片 —— 这个上限是必需的。
+  static const Duration _reconnectCooldown = Duration(seconds: 60);
+
+  static DateTime? _lastReconnectAt;
+
+  /// 把一台发现到的服务端设为当前远程服务。
+  ///
+  /// [apiKey] 显式传入时覆盖发现结果里的 Token —— 用于服务端开了鉴权、
+  /// 发现应答又没带 Token（默认行为）时，让用户在配对弹窗里手输一次。
+  static Future<void> pair(MjnDiscoveredServer server, {String? apiKey}) async {
+    invalidateHealthCache();
+    await RealSrSettings.saveMangaJaNaiRemoteBaseUrl(server.baseUrl);
+    final token = (apiKey ?? server.token ?? '').trim();
+    if (token.isNotEmpty) {
+      await RealSrSettings.saveMangaJaNaiRemoteApiKey(token);
+    }
+    await RealSrSettings.saveMjnRemotePeer(
+      instanceId: server.instanceId,
+      name: server.displayName,
+    );
+    logger.d('已配对远程服务端：${server.displayName} @ ${server.baseUrl}');
+  }
+
+  /// 清除已记住的服务端身份。
+  ///
+  /// 用户手动改地址或 Token 时必须调用 —— 否则下次连不上时，自动重连会把
+  /// 一个已经作废的身份又"认"回来，把刚改好的配置覆盖掉。
+  static Future<void> forgetPeer() async {
+    await RealSrSettings.saveMjnRemotePeer(instanceId: '', name: '');
+  }
+
+  /// 在局域网里重新找到上次配对的那台服务端，并更新地址 / Token。
+  ///
+  /// 返回 true 表示**配置已被更新**（调用方应重新探活），而不是「已经连上了」。
+  ///
+  /// 匹配规则刻意收得很紧：
+  /// - 优先按 `instance_id` 精确匹配；
+  /// - 退而求其次只接受「全场唯一一台、且不需要我们拿不出的 Token」的服务端 ——
+  ///   用户显然只有一台电脑，此时多问一次反而是打扰；
+  /// - **绝不按显示名匹配**。同一台 PC 上可能同时跑着 WSL 服务与 Windows 原生服务，
+  ///   两者默认名都是主机名，按名字认亲极易连错实例。
+  static Future<bool> reconnect() async {
+    final peerId = await RealSrSettings.loadMjnRemotePeerId();
+    final currentBaseUrl = await configuredBaseUrl();
+    final savedKey = (await RealSrSettings.loadMangaJaNaiRemoteApiKey()).trim();
+
+    final List<MjnDiscoveredServer> servers;
+    try {
+      servers = await MjnDiscovery.discover();
+    } catch (e) {
+      logger.d('自动重连：局域网发现失败（$e）');
+      return false;
+    }
+    if (servers.isEmpty) {
+      logger.d('自动重连：局域网内没有发现任何 mjn 服务端');
+      return false;
+    }
+
+    MjnDiscoveredServer? match;
+    if (peerId.isNotEmpty) {
+      for (final server in servers) {
+        if (server.instanceId == peerId) {
+          match = server;
+          break;
+        }
+      }
+    }
+    // 兜底接管：只在**用户本来就在用远程服务**（此前已配置过地址或 Token）
+    // 且局域网里恰好只有一台候选时才做。
+    //
+    // 为什么必须有「本来就在用」这个前提：发现是"局域网里谁应答就信谁"，
+    // 而超分请求会把**用户正在看的漫画原图**整张上传。少了这个前提，
+    // 同网段任意一台伪造应答的机器就能在用户毫不知情时把自己变成超分服务器 ——
+    // 代价是隐私而不只是慢。多问一次「点搜索确认」，换掉这个风险很划算。
+    if (match == null &&
+        servers.length == 1 &&
+        (currentBaseUrl != null || savedKey.isNotEmpty)) {
+      final only = servers.first;
+      if (only.authRequired && savedKey.isEmpty) {
+        return false; // 拿不出 Token，接管了也用不了
+      }
+      match = only;
+    }
+    if (match == null) return false;
+
+    // 地址没变就不写设置：既省一次落盘，也避免无谓地刷新 SharedPreferences。
+    if (match.baseUrl == currentBaseUrl) return false;
+
+    invalidateHealthCache();
+    await RealSrSettings.saveMangaJaNaiRemoteBaseUrl(match.baseUrl);
+    final token = match.token;
+    if (token != null && token.isNotEmpty) {
+      await RealSrSettings.saveMangaJaNaiRemoteApiKey(token);
+    }
+    await RealSrSettings.saveMjnRemotePeer(
+      instanceId: match.instanceId,
+      name: match.displayName,
+    );
+    logger.d('自动重连成功：地址已更新为 ${match.baseUrl}（${match.displayName}）');
+    return true;
+  }
+
+  /// 带冷却的自动重连，供热路径调用。
+  static Future<bool> _autoReconnect() async {
+    if (!await RealSrSettings.loadMjnRemoteAutoConnect()) return false;
+    final last = _lastReconnectAt;
+    final now = DateTime.now();
+    if (last != null && now.difference(last) < _reconnectCooldown) return false;
+    _lastReconnectAt = now;
+    return reconnect();
   }
 
   /// 远程服务是否可用。热路径（每张图超分前）会调用，故依赖 [_healthTtl] 缓存。

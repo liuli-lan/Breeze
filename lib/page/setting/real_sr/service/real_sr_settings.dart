@@ -389,4 +389,57 @@ class RealSrSettings {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyMangaJaNaiRemoteApiKey, value.trim());
   }
+
+  // =========================================================
+  // 自动发现 / 自动连接
+  // =========================================================
+
+  /// 「自动连接」开关：连不上时自动在局域网里重新发现服务端。
+  ///
+  /// 默认开。它解决的是最烦人的一个坑 —— PC 换 IP（DHCP 续租、换网络、路由器重启）
+  /// 之后手填的地址就失效了，而用户根本不会意识到是地址问题，只会觉得"超分坏了"。
+  static const _keyMjnRemoteAutoConnect = 'realsr_mjn_remote_auto_connect';
+
+  /// 上次配对成功的服务端 `instance_id`。
+  ///
+  /// 服务端把它持久化在 `work/instance.json`，重启不变。客户端靠它认出
+  /// 「局域网里那台 192.168.1.7 还是上次那台电脑」，而不是"同名的另一台"。
+  static const _keyMjnRemotePeerId = 'realsr_mjn_remote_peer_id';
+
+  /// 上次配对成功的服务端显示名，用于设置页展示，以及 id 缺失时的兜底匹配。
+  static const _keyMjnRemotePeerName = 'realsr_mjn_remote_peer_name';
+
+  static Future<bool> loadMjnRemoteAutoConnect() async {
+    final prefs = await SharedPreferences.getInstance();
+    // 默认 true：这是本功能的默认体验，不需要用户先理解它再打开。
+    return prefs.getBool(_keyMjnRemoteAutoConnect) ?? true;
+  }
+
+  static Future<void> saveMjnRemoteAutoConnect(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyMjnRemoteAutoConnect, value);
+  }
+
+  static Future<String> loadMjnRemotePeerId() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_keyMjnRemotePeerId) ?? '';
+  }
+
+  static Future<String> loadMjnRemotePeerName() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_keyMjnRemotePeerName) ?? '';
+  }
+
+  /// 记住（或清除）已配对的服务端身份。
+  ///
+  /// 传空串即清除 —— 用户手动改地址、或主动断开时调用，避免下次自动重连
+  /// 把一个已经作废的身份又"认"回来。
+  static Future<void> saveMjnRemotePeer({
+    required String instanceId,
+    required String name,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyMjnRemotePeerId, instanceId.trim());
+    await prefs.setString(_keyMjnRemotePeerName, name.trim());
+  }
 }

@@ -2906,6 +2906,111 @@ class Translations$realSr$zh_CN {
 	/// zh-CN: '服务端未启用 CUDA，超分会非常慢'
 	String get remoteCudaOff => '服务端未启用 CUDA，超分会非常慢';
 
+	/// zh-CN: '自动连接'
+	String get remoteAutoConnect => '自动连接';
+
+	/// zh-CN: '连不上时自动在局域网里重新找到电脑'
+	String get remoteAutoConnectSubtitle => '连不上时自动在局域网里重新找到电脑';
+
+	/// zh-CN: '自动发现'
+	String get remoteDiscover => '自动发现';
+
+	/// zh-CN: '搜索同一局域网内正在运行的服务端'
+	String get remoteDiscoverSubtitle => '搜索同一局域网内正在运行的服务端';
+
+	/// zh-CN: '搜索'
+	String get remoteDiscoverAction => '搜索';
+
+	/// zh-CN: '发现局域网内的服务端'
+	String get remoteDiscoverTitle => '发现局域网内的服务端';
+
+	/// zh-CN: '正在搜索局域网内的服务端…'
+	String get remoteDiscoverScanning => '正在搜索局域网内的服务端…';
+
+	/// zh-CN: '已探测 $done / $total 个地址'
+	String remoteDiscoverProgress({required Object done, required Object total}) => '已探测 ${done} / ${total} 个地址';
+
+	/// zh-CN: '没有找到服务端'
+	String get remoteDiscoverNone => '没有找到服务端';
+
+	/// zh-CN: '请确认：电脑上的超分服务已启动；手机与电脑连的是同一个网络；Windows 防火墙放行 8765（TCP）与 8766（UDP）。也可以点「服务器配置」手动填写地址。'
+	String get remoteDiscoverNoneHint => '请确认：电脑上的超分服务已启动；手机与电脑连的是同一个网络；Windows 防火墙放行 8765（TCP）与 8766（UDP）。也可以点「服务器配置」手动填写地址。';
+
+	/// zh-CN: '找到 $count 个服务端'
+	String remoteDiscoverFound({required Object count}) => '找到 ${count} 个服务端';
+
+	/// zh-CN: '广播发现'
+	String get remoteDiscoverViaUdp => '广播发现';
+
+	/// zh-CN: '扫描发现'
+	String get remoteDiscoverViaScan => '扫描发现';
+
+	/// zh-CN: '需要 Token'
+	String get remoteDiscoverAuthRequired => '需要 Token';
+
+	/// zh-CN: '已连接到 $name'
+	String remoteDiscoverPaired({required Object name}) => '已连接到 ${name}';
+
+	/// zh-CN: '该服务端已开启鉴权，请填入电脑上 MJN_API_KEY 的值'
+	String get remoteDiscoverTokenHint => '该服务端已开启鉴权，请填入电脑上 MJN_API_KEY 的值';
+
+	/// zh-CN: '允许局域网访问'
+	String get lanAccess => '允许局域网访问';
+
+	/// zh-CN: '让同一网络下的手机、平板调用这台电脑超分（开启后同网段的其他设备也能提交任务）'
+	String get lanAccessSubtitle => '让同一网络下的手机、平板调用这台电脑超分（开启后同网段的其他设备也能提交任务）';
+
+	/// zh-CN: '手机连接地址'
+	String get lanPhoneAddress => '手机连接地址';
+
+	/// zh-CN: '复制'
+	String get lanCopy => '复制';
+
+	/// zh-CN: '地址已复制'
+	String get lanCopied => '地址已复制';
+
+	/// zh-CN: '正在检查局域网连通性…'
+	String get lanProbing => '正在检查局域网连通性…';
+
+	/// zh-CN: '局域网可访问'
+	String get lanReachable => '局域网可访问';
+
+	/// zh-CN: '手机上的 Breeze 用「自动发现」即可找到这台电脑'
+	String get lanReachableHint => '手机上的 Breeze 用「自动发现」即可找到这台电脑';
+
+	/// zh-CN: '局域网无法访问'
+	String get lanBlocked => '局域网无法访问';
+
+	/// zh-CN: '本机服务运行正常，但局域网地址连不上 —— 通常是 Windows 防火墙没有放行该端口'
+	String get lanBlockedHint => '本机服务运行正常，但局域网地址连不上 —— 通常是 Windows 防火墙没有放行该端口';
+
+	/// zh-CN: '自动放行'
+	String get lanFixAction => '自动放行';
+
+	/// zh-CN: '已取消（未获得管理员授权）'
+	String get lanFixCancelled => '已取消（未获得管理员授权）';
+
+	/// zh-CN: '已放行，手机现在应该能连上了'
+	String get lanFixSuccess => '已放行，手机现在应该能连上了';
+
+	/// zh-CN: '规则已添加，但仍探测不到；如有第三方安全软件，请检查它是否拦截了入站连接'
+	String get lanFixStillBlocked => '规则已添加，但仍探测不到；如有第三方安全软件，请检查它是否拦截了入站连接';
+
+	/// zh-CN: '本机服务未运行'
+	String get lanServiceDown => '本机服务未运行';
+
+	/// zh-CN: '先让服务跑起来，再检查局域网连通性'
+	String get lanServiceDownHint => '先让服务跑起来，再检查局域网连通性';
+
+	/// zh-CN: '未检测到局域网地址'
+	String get lanNoAddress => '未检测到局域网地址';
+
+	/// zh-CN: '请确认这台电脑已连上 WiFi 或网线'
+	String get lanNoAddressHint => '请确认这台电脑已连上 WiFi 或网线';
+
+	/// zh-CN: '尚未检查局域网连通性'
+	String get lanUnknown => '尚未检查局域网连通性';
+
 	/// zh-CN: '放大倍率'
 	String get mangaJaNaiScale => '放大倍率';
 
@@ -5021,6 +5126,41 @@ extension on Translations {
 			'realSr.remoteNotConfigured' => '未配置服务器地址',
 			'realSr.remoteMissingModels' => '服务端缺少模型，部分链会降级',
 			'realSr.remoteCudaOff' => '服务端未启用 CUDA，超分会非常慢',
+			'realSr.remoteAutoConnect' => '自动连接',
+			'realSr.remoteAutoConnectSubtitle' => '连不上时自动在局域网里重新找到电脑',
+			'realSr.remoteDiscover' => '自动发现',
+			'realSr.remoteDiscoverSubtitle' => '搜索同一局域网内正在运行的服务端',
+			'realSr.remoteDiscoverAction' => '搜索',
+			'realSr.remoteDiscoverTitle' => '发现局域网内的服务端',
+			'realSr.remoteDiscoverScanning' => '正在搜索局域网内的服务端…',
+			'realSr.remoteDiscoverProgress' => ({required Object done, required Object total}) => '已探测 ${done} / ${total} 个地址',
+			'realSr.remoteDiscoverNone' => '没有找到服务端',
+			'realSr.remoteDiscoverNoneHint' => '请确认：电脑上的超分服务已启动；手机与电脑连的是同一个网络；Windows 防火墙放行 8765（TCP）与 8766（UDP）。也可以点「服务器配置」手动填写地址。',
+			'realSr.remoteDiscoverFound' => ({required Object count}) => '找到 ${count} 个服务端',
+			'realSr.remoteDiscoverViaUdp' => '广播发现',
+			'realSr.remoteDiscoverViaScan' => '扫描发现',
+			'realSr.remoteDiscoverAuthRequired' => '需要 Token',
+			'realSr.remoteDiscoverPaired' => ({required Object name}) => '已连接到 ${name}',
+			'realSr.remoteDiscoverTokenHint' => '该服务端已开启鉴权，请填入电脑上 MJN_API_KEY 的值',
+			'realSr.lanAccess' => '允许局域网访问',
+			'realSr.lanAccessSubtitle' => '让同一网络下的手机、平板调用这台电脑超分（开启后同网段的其他设备也能提交任务）',
+			'realSr.lanPhoneAddress' => '手机连接地址',
+			'realSr.lanCopy' => '复制',
+			'realSr.lanCopied' => '地址已复制',
+			'realSr.lanProbing' => '正在检查局域网连通性…',
+			'realSr.lanReachable' => '局域网可访问',
+			'realSr.lanReachableHint' => '手机上的 Breeze 用「自动发现」即可找到这台电脑',
+			'realSr.lanBlocked' => '局域网无法访问',
+			'realSr.lanBlockedHint' => '本机服务运行正常，但局域网地址连不上 —— 通常是 Windows 防火墙没有放行该端口',
+			'realSr.lanFixAction' => '自动放行',
+			'realSr.lanFixCancelled' => '已取消（未获得管理员授权）',
+			'realSr.lanFixSuccess' => '已放行，手机现在应该能连上了',
+			'realSr.lanFixStillBlocked' => '规则已添加，但仍探测不到；如有第三方安全软件，请检查它是否拦截了入站连接',
+			'realSr.lanServiceDown' => '本机服务未运行',
+			'realSr.lanServiceDownHint' => '先让服务跑起来，再检查局域网连通性',
+			'realSr.lanNoAddress' => '未检测到局域网地址',
+			'realSr.lanNoAddressHint' => '请确认这台电脑已连上 WiFi 或网线',
+			'realSr.lanUnknown' => '尚未检查局域网连通性',
 			'realSr.mangaJaNaiScale' => '放大倍率',
 			'realSr.mangaJaNaiScaleSubtitle' => '黑白页按原图高度自动选模型，彩色页自动分流',
 			'realSr.mangaJaNaiThreshold' => '灰度判定阈值',
@@ -5112,6 +5252,8 @@ extension on Translations {
 			'about.disclaimerItem1Content' => '本项目为开源软件，由本人独立开发并维护。项目以"原样"形式提供，开发者不对项目的功能完整性、稳定性、安全性或适用性作出任何明示或暗示的担保。',
 			'about.disclaimerItem2Title' => '2. 责任限制',
 			'about.disclaimerItem2Content' => '开发者对因使用、修改或分发本项目（包括但不限于直接使用、二次开发或集成至其他项目）而导致的任何直接、间接、特殊、附带或后果性损害不承担任何责任。这些损害可能包括但不限于数据丢失、设备损坏、业务中断、利润损失或其他经济损失。',
+			_ => null,
+		} ?? switch (path) {
 			'about.disclaimerItem3Title' => '3. 用户责任',
 			'about.disclaimerItem3Content' => '用户在使用本项目时，应自行评估其适用性并承担所有风险。用户须确保其使用行为符合所在国家或地区的法律法规及道德规范。开发者不对用户因违反法律法规或不当使用本项目而导致的任何后果负责。',
 			'about.disclaimerItem4Title' => '4. 第三方依赖与资源',
@@ -5147,8 +5289,6 @@ extension on Translations {
 			'oldHome.loadMoreFailed' => '加载更多失败，点击重试',
 			'oldHome.loadMore' => '点击加载更多',
 			'oldHome.noMore' => '没有更多了',
-			_ => null,
-		} ?? switch (path) {
 			'more.common' => '常用',
 			'more.others' => '其他',
 			'more.downloadTasks' => '下载任务',

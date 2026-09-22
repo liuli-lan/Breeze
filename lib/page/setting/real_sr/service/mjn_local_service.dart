@@ -300,6 +300,10 @@ class MjnLocalService {
   ///
   /// **内容相同则不重写**：避免每次启动都刷新 mtime，也让目录保持稳定
   /// （杀软与文件缓存都不会被无谓地打乱）。
+  ///
+  /// 写完后会**回读校验**，确认磁盘上的代码与随应用分发的那份逐字节一致 ——
+  /// 这个目录里的 `mjn_service.py` 是接下来要被 Python 解释器执行的文件，
+  /// 它必须是我们自己放进去的那份。见下方校验处的注释。
   Future<String> _releaseServiceCode() async {
     final dir = await _serviceDir();
     await Directory(dir).create(recursive: true);
@@ -318,6 +322,29 @@ class MjnLocalService {
       }
       await target.writeAsBytes(bytes, flush: true);
       logger.d('已释放本机服务代码：$name（${bytes.length} B）');
+    }
+
+    // 回读校验：拦住两类"写进去的其实不是我们那份代码"的情况 ——
+    //   1. 目录被第三方写入过（本次覆盖会修正，但覆盖本身失败时就露馅了）；
+    //   2. 目录只读 / 被安全软件拦截，写入静默失败，于是启动的仍是旧文件。
+    // 校验不过就拒绝启动：宁可显示"服务不可用"，也不要执行来路不明的代码。
+    for (final name in _assetFiles) {
+      final data = await rootBundle.load('$_assetDir/$name');
+      final expected = data.buffer.asUint8List(
+        data.offsetInBytes,
+        data.lengthInBytes,
+      );
+      final target = File(p.join(dir, name));
+      final actual = target.existsSync()
+          ? await target.readAsBytes()
+          : const <int>[];
+      if (!_bytesEqual(actual, expected)) {
+        throw StateError(
+          '服务代码校验失败：$name 与随应用分发的版本不一致'
+          '（磁盘 ${actual.length} B / 期望 ${expected.length} B）。'
+          '已拒绝启动本机超分服务，请确认 $dir 可写且未被其他程序改写。',
+        );
+      }
     }
     return dir;
   }
